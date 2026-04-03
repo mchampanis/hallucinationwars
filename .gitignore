@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Editor/IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Project-local notes and memory
+ONGOING.md
+.memory/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Claude Code (keep skills committed for sharing, ignore the rest)
+.claude/*
+!.claude/skills/

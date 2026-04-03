@@ -1,0 +1,14 @@
+{
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "files.eol": "\n",
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "[lua]": {
+        "editor.defaultFormatter": "sumneko.lua"
+    },
+    "liveshare.presence": true,
+    "liveshare.populateGitCoAuthors": true
+}
