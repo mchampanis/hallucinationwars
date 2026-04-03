@@ -24,9 +24,8 @@ build/
 Thumbs.db
 desktop.ini
 
-# Project-local notes and memory
+# Project-local notes
 ONGOING.md
-.memory/
 
 # Logs
 *.log

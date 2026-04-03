@@ -15,7 +15,7 @@ This is a two-person project. Read `COLLAB.md` for the full collaboration guide,
 
 ## Tech Stack
 
-TBD - currently in design phase. PlayCanvas under evaluation.
+Three.js + cannon-es + Wasmoon + PeerJS + Vite + TypeScript. See `.memory/architecture.md` for full rationale.
 
 ## Build & Run
 
@@ -23,8 +23,8 @@ No build system yet.
 
 ## Code Conventions
 
-- Unit DNA/blueprints are Lua scripts.
-- Game engine code will be JS/TS (PlayCanvas).
+- Unit DNA/blueprints are Lua scripts (Wasmoon - Lua 5.4 via WASM).
+- Game engine code is TypeScript (Three.js + cannon-es).
 - 4-space indentation throughout.
 - See `COLLAB.md` for full code style guide.
 

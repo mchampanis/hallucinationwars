@@ -49,7 +49,7 @@ Both developers run their own Claude Code instance. To keep both Claudes in sync
 
 ### Shared Context
 
-- **`.memory/` directory** is gitignored - it is local to each developer's machine. Each Claude maintains its own memory bank independently.
+- **`.memory/` directory** is committed and shared via git. Both Claudes read and write to the same memory bank.
 - **`CLAUDE.md`** and **`COLLAB.md`** are committed - changes here are shared via git and picked up by both Claudes.
 - **`ISSUES.md`** is committed - both Claudes should read it for known bugs and track new ones there.
 - **Design discussions, decisions, and task context belong in committed files** so the other developer's Claude can see them. If you discuss something significant with your Claude - a design decision, a tradeoff, a new idea - make sure it lands in `ISSUES.md` (if it's a problem/feature), `README.md` (if it changes the project description), or `COLLAB.md` (if it changes how we work). Don't let important context live only in one Claude's conversation history.
@@ -72,7 +72,7 @@ Both developers run their own Claude Code instance. To keep both Claudes in sync
 
 ## Project Memory Bank
 
-Maintain a `.memory/` directory as persistent context across sessions. This is gitignored (each developer has their own).
+Maintain a `.memory/` directory as persistent context across sessions. This is committed and shared via git so both Claudes stay in sync.
 
 ### Files
 
@@ -87,6 +87,7 @@ Maintain a `.memory/` directory as persistent context across sessions. This is g
 
 - **Always read before working.** At the start of every task, read all `.memory/` files to load context.
 - **Always update after working.** After completing a task, update `active-context.md` with current state and next steps, and append a timestamped entry to `progress.md`.
+- **Attribute entries in progress.md.** Prefix entries with `[Mike]` or `[Dave]` so both Claudes know who wrote what. Append sequentially (don't edit each other's entries) to avoid merge conflicts.
 - **Keep architecture current.** If a task changes patterns or structure, update `architecture.md` immediately.
 - **progress.md is for context, not diffs.** Record decisions, tradeoffs, blockers. Don't duplicate git log.
 - **Task tracking stays in ISSUES.md.** "Next steps" in `active-context.md` means the logical continuation of current work, not the backlog.

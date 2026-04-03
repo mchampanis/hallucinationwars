@@ -79,15 +79,20 @@ The token system must create meaningful asymmetry, force interesting tradeoffs, 
 4. **Enable comeback mechanics.** Stealing tokens or DNA from the enemy should be a viable path back into the game.
 5. **Preserve quirkiness.** The system should naturally produce funny outcomes - a budget LLM designing hilariously bad units, a token-rich player over-engineering something absurd, dumb strategies working because the opponent's AI didn't have enough context to predict them.
 
+### Decisions So Far
+
+- **Token generation**: Starting balance per player + earn tokens by building miners (like bitcoin mining). Active, not passive.
+- **Token theft**: Steal scraps from defeated enemy units (alongside DNA and materials).
+- **Model tiers**: Use real models, potentially cross-provider. "Dumb" LLM could be a cheaper model (e.g. Haiku) or a different provider entirely (e.g. Gemini vs Claude). Could be fun to compare different AI personalities/strengths. NOT just Claude pretending to be dumb.
+- **Anti-turtling**: Game must end. Standard RTS pressure mechanics (like StarCraft) - map resources deplete, aggression is rewarded.
+
 ### Open Questions
 
-- **Token generation**: How do players earn tokens? Is it passive (time-based), active (mining a specific resource), or achievement-based (holding territory, winning skirmishes)?
-- **Token theft**: How does stealing work? Raid enemy base? Loot from defeated units? Intercept/jam their LLM calls?
-- **Model tiers**: How many tiers? Two (small/large) or a spectrum? Do we use real model tiers (haiku/sonnet/opus) or abstract them?
 - **Context as resource**: If context window is token-gated, how does the player/LLM choose what to remember and what to forget? Can you "load" specific memories by spending tokens?
 - **Information leakage**: Should spending a lot of tokens on a single call be detectable by the opponent? (e.g. "enemy is thinking hard about something" as an intel signal)
 - **Anti-snowball**: How do we prevent the token-rich player from running away with the game? Diminishing returns? Expensive upkeep on complex units?
 - **Dumb physics budget**: Should some token budget be reserved for the physics engine itself, so a token-starved player's units literally move worse or have jankier physics?
+- **Miner token balance**: How many tokens does a miner produce? Flat rate or diminishing? Can miners be destroyed to cut off token income?
 
 ### Gamification Ideas
 
@@ -120,3 +125,192 @@ Instead of just stealing tokens, what if you could intercept fragments of the en
 ### Notes
 
 This is probably the most important design problem in the game. The token economy is what makes this an actual game rather than "two AIs play chess." Get this right and everything else (unit design, combat, DNA stealing) gains depth. Get it wrong and it's just two chatbots with extra steps.
+
+---
+
+## HW-003: Material system and construction rules
+
+**Status:** Open
+**Priority:** High
+**Added:** 2026-04-03
+
+### Problem
+
+Materials on the map have no predetermined use - the LLM decides what to build from them following physical logic. But "free-form" doesn't mean "anything goes." There need to be rules within the game context so construction is fair and fun, not arbitrary.
+
+### Constraints
+
+- The LLM can't just invent impossible things (no "build a nuclear reactor from twigs")
+- Both players must have equivalent access to material diversity (map gen responsibility)
+- Construction must follow physical plausibility: wood -> bows/structures, sulphur + charcoal + saltpeter -> gunpowder, iron + heat -> steel, etc.
+- The game engine needs to validate or constrain what the LLM proposes
+
+### Open Questions
+
+- Do materials have explicit properties (hardness, flammability, conductivity) that the game tracks, or is it purely LLM judgment?
+- If properties are tracked, who defines them - us (hardcoded), the LLM (per-game), or procedurally generated?
+- How do we prevent one LLM from being "smarter" about material combinations than the other? Is that asymmetry a feature (rewarding the better strategist) or a problem?
+- Do we need a recipe validation system, or do we trust the LLM + physics engine to sort it out?
+- What's the minimum set of materials needed for a fun game? (wood, stone, iron, sulphur, saltpeter, animal sinew, water, clay, copper, tin...?)
+
+---
+
+## HW-004: LLM integration architecture
+
+**Status:** Open
+**Priority:** High
+**Added:** 2026-04-03
+
+### Decision
+
+Each player uses their own API key against their own account. The LLM is NOT embedded in the game server - it's called via API from the game client.
+
+### Architecture
+
+- Game client makes API calls to LLM provider (Claude, Gemini, etc.) using player's own API key
+- Each player could use a different provider - this is a feature, not a bug (Gemini vs Claude!)
+- MCP server pattern: game client acts as MCP host, LLM gets tools for unit design, material queries, map intel, etc.
+- Game enforces token limitation through an in-game proxy/budget layer that gates API calls
+
+### Token Enforcement
+
+The game must prevent players from bypassing the in-game token economy (no opening a separate browser tab to ask Claude for free). Options:
+
+1. **Honor system** - trust players not to cheat. Works for friends playing together.
+2. **Game-mediated API calls** - all LLM calls go through the game's proxy layer which deducts in-game tokens before forwarding. Player provides API key but the game controls when/how it's used.
+3. **Sandboxed interface** - the only way to talk to your LLM is through the in-game chat UI. No copy-paste, no external access during the game.
+
+Option 2 is the most practical. The game holds the API key in memory, routes all calls through its token budget, and the player interacts only through the in-game interface.
+
+### Anti-Jailbreak
+
+The LLM must not be able to circumvent game rules. The system prompt must be carefully constructed so the LLM:
+- Cannot access the game engine directly (only through provided tools)
+- Cannot spend more tokens than budgeted
+- Cannot read the other player's state
+- Cannot modify its own constraints
+
+This is a prompt engineering + tool design problem, not a sandbox problem. The LLM only sees what the game gives it.
+
+### Open Questions
+
+- How does the in-game LLM interface look? Chat panel? Voice? Both?
+- Do we support multiple providers from day one, or start with one (Claude) and add others later?
+- How do we handle API rate limits and latency? Queue system? "Your advisor is thinking..." UI?
+- What tools does the LLM get access to? (list materials, inspect map, design unit, propose strategy, analyze DNA...)
+
+---
+
+## HW-005: Player control vs LLM autonomy
+
+**Status:** Open
+**Priority:** High
+**Added:** 2026-04-03
+
+### Problem
+
+The player must retain meaningful control during gameplay. This is a game, not a simulation viewer. But units have LLM-authored Lua scripts that define their behavior. How do we balance player agency with scripted unit behavior?
+
+### Design Direction
+
+- **Player controls units directly** (mouse/keyboard) - movement, targeting, formation
+- **Lua scripts define unit internals** - what the unit CAN do, its physics, its reactions
+- **LLM provides strategic overlay** - suggested plans, movement waypoints on the map, priority targets
+- **Player follows (or ignores) the strategy** - the overlay is advice, not commands
+
+### Example: Tank Unit
+
+A tank unit designed by the LLM has Lua that defines:
+- Movement speed, turning radius, terrain capabilities
+- Weapon range, damage, reload time
+- **Internal behaviors**: "explode on collision with enemy base", "fire when enemy in range"
+- Physics properties: weight, friction, bounciness
+
+The PLAYER moves the tank with mouse clicks. The tank follows player orders. But the Lua script still runs: if the LLM programmed it to explode when it moves, it explodes when the player moves it. This is hilarious and is exactly the kind of emergent gameplay we want.
+
+### Strategic Overlay
+
+The LLM can draw on the map:
+- Suggested movement paths
+- "Attack here" markers
+- "Avoid this area" warnings
+- Formation suggestions
+
+The player sees this as a translucent overlay and decides whether to follow it. The LLM doesn't move units - the player does.
+
+### Open Questions
+
+- How much autonomy do units have without player input? Do idle units follow their Lua scripts (patrol, defend, gather)?
+- Can the player override unit internals? ("don't explode when I move you")
+- Can the LLM issue batch commands? ("all archers hold this ridge") Or is that always player-initiated?
+- How does unit selection/control work? Standard RTS box-select + right-click-to-move?
+- Control groups? Hotkeys?
+
+---
+
+## HW-006: Lua sandboxing and safety
+
+**Status:** Open
+**Priority:** High
+**Added:** 2026-04-03
+
+### Decision
+
+Absolute safety. Lua scripts have zero access to the OS or filesystem. They can only interact with:
+- The unit's own internal state (health, position, inventory, stats)
+- Game-provided APIs (nearby units, terrain queries, combat actions)
+- UI overlays (drawing on the map, displaying unit status)
+
+### Key Constraint
+
+**Claude does NOT control the game during gameplay.** The LLM designs units and writes Lua during the prep phase. Once combat starts, only the Lua runs - the LLM is not making real-time decisions. The player controls units, the Lua scripts define unit behavior, and the LLM is only consulted when the player explicitly asks (spending tokens).
+
+### Implementation
+
+Wasmoon (Lua 5.4 via WASM) runs in a sandboxed WASM environment. The sandbox must:
+- Strip all standard library functions that touch the OS (`os.*`, `io.*`, `loadfile`, `dofile`, `require`)
+- Provide only whitelisted game APIs as globals
+- Enforce execution time limits (no infinite loops)
+- Enforce memory limits (no memory bombs)
+- Isolate each unit's Lua state (unit A can't read unit B's variables)
+
+### Open Questions
+
+- What game APIs does a Lua script get? (move, attack, query_nearby, get_terrain, get_health, ...)
+- Can Lua scripts communicate between units? (e.g. "all units in squad, converge on target")
+- How do we handle Lua errors gracefully? (unit "crashes" in-game? becomes inert? explodes?)
+- Execution budget per tick - how many Lua instructions per frame before we cut it off?
+
+---
+
+## HW-007: Prep phase and game flow
+
+**Status:** Open
+**Priority:** Medium
+**Added:** 2026-04-03
+
+### Decision
+
+No fixed timer for prep phase. Standard RTS flow - player decides when to start fighting. But the game must naturally discourage infinite turtling.
+
+### Anti-Turtling Mechanics (StarCraft-style)
+
+- Map resources are finite and deplete - you MUST expand to sustain
+- Expansion means exposure, which means conflict
+- Token miners have diminishing returns over time (first miner is productive, tenth miner barely helps)
+- Late-game resource scarcity forces aggression
+- Optional: fog of war reveals gradually, so hiding forever becomes harder
+
+### LLM Speed as Balancing Factor
+
+- "Dumb" LLM (cheap model) designs units quickly but they're lower quality
+- "Smart" LLM (expensive model) takes longer but designs are more sophisticated
+- This creates a natural tradeoff: rush with cheap units early vs tech up with expensive units late
+- The time cost is real API latency, not artificial - a big model actually takes longer to respond
+
+### Open Questions
+
+- Is there a hard time limit at all, or purely economic pressure?
+- Can players agree to extend prep time? (friendly games)
+- Is there a "ready" button that both players must press to start combat?
+- Or does combat happen naturally as players expand and encounter each other?
