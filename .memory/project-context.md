@@ -58,6 +58,7 @@ A 2-player RTS where each side has an LLM as strategic advisor. The LLM isn't ju
 - **IDE**: VS Code with Live Share for pairing
 - **Comms**: Discord `#github-hw` channel (GitHub webhook active)
 - **Platforms**: Windows (Michael) + macOS (Dave)
+- **Discord bot**: Cortex (separate repo) - live updates between developers and their Claudes
 
 ## Open Questions
 

@@ -44,6 +44,15 @@ bash scripts/setup.sh
 
 The setup script checks dependencies and installs recommended VS Code extensions (Live Share, Lua, ESLint, Prettier, EditorConfig).
 
+### Running
+
+```bash
+npm install
+npm run dev -- --host
+```
+
+Or use the run scripts: `.\scripts\dev.ps1` (Windows) / `bash scripts/dev.sh` (macOS). The dev server is LAN-accessible so both developers can view it.
+
 ### Claude Code Onboarding
 
 Both developers use [Claude Code](https://claude.ai/code) as their AI pair programmer. After cloning and running the setup script:
@@ -62,7 +71,7 @@ Other available skills: `/check` (review code for bugs and smells) and `/researc
 
 ## Status
 
-Early design phase. No playable build yet.
+Prototype: procedural terrain with biomes, camera controls, unit selection/movement, basic UI. No networking, LLM, or Lua integration yet.
 
 ## Ethics
 

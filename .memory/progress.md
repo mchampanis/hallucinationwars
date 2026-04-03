@@ -35,3 +35,14 @@
 - Main branch protected. Conventional commits and branch naming adopted.
 - Added /refresh skill for session onboarding.
 - Multiple /check passes cleaned up typos, broken references, gitignore issues, ETHICS.md plurality.
+
+### [Mike] Session: First Prototype
+- Initialized Vite + TypeScript project with Three.js, cannon-es, simplex-noise.
+- Built procedural terrain: heightmap with layered simplex noise, island falloff, biome vertex coloring (water/sand/plains/forest/rock/snow), ~3000 instanced trees.
+- Camera: perspective with WASD pan, Q/E rotate, scroll zoom, middle-mouse orbit. Follows terrain height.
+- Mouse input: left click select, shift+click add, drag box select, right click move-to. Hover highlighting.
+- Units: 8 test capsules (4 red, 4 blue), health bars, selection rings, basic move-toward-target with terrain following and passability checks. Formation spread for multi-unit move.
+- UI: resource bar (placeholder), selection panel, minimap with unit dots, controls hint overlay.
+- Fixed Three.js deprecation warnings (Clock->Timer, PCFSoftShadowMap->PCFShadowMap).
+- No team ownership enforcement yet - both teams selectable by anyone. Deferred to networking phase.
+- Prototype not yet tested by Mike (away from PC).

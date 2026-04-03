@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current Focus
-Tech stack decided. Design issues filed. Ready to start prototyping or continue design discussions with Dave.
+First prototype built - procedural map, units, camera, mouse controls, UI. Awaiting Mike's visual feedback.
 
 ## Recent Decisions
 - **Tech stack**: Three.js + cannon-es + Wasmoon + PeerJS + Vite + TypeScript
@@ -15,8 +15,9 @@ Tech stack decided. Design issues filed. Ready to start prototyping or continue 
 - Main branch protected, all changes via branches + PRs.
 
 ## What Needs to Happen Next
-1. **Dave onboarding** - Accept GitHub invite, clone, run setup, `/refresh`.
-2. **Prototype scope** - Define smallest playable slice and start building.
-3. **Resolve HW-003** - Material system rules (properties? validation? minimum material set?).
-4. **Discord bot** - Separate project or part of this one? For live updates between developers and their Claudes.
-5. **Design doc consolidation** - Issues HW-002 through HW-007 have a lot of open questions. Some need Dave's input before deciding.
+1. **Mike tests prototype** - Run `npm run dev -- --host`, check map/controls/units, give feedback.
+2. **Dave onboarding** - Accept GitHub invite, clone, run setup, `/refresh`.
+3. **Iterate on prototype** - Based on feedback: tweak terrain, camera feel, unit movement, UI.
+4. **Team assignment** - Add player team concept (URL param or UI toggle) so each player controls their own units.
+5. **Cortex integration** - Discord bot is in a separate repo (Cortex). Wire it up for cross-Claude context sharing.
+6. **Design doc consolidation** - Issues HW-002 through HW-007 have open questions needing Dave's input.

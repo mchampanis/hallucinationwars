@@ -1,0 +1,26 @@
+{
+  "name": "hallucinationwars",
+  "version": "0.1.0",
+  "description": "A 2-player RTS where each side has an LLM as strategic advisor.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mchampanis/hallucinationwars.git"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "cannon-es": "^0.20.0",
+    "simplex-noise": "^4.0.3",
+    "three": "^0.183.2"
+  },
+  "devDependencies": {
+    "@types/three": "^0.183.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
+  }
+}
