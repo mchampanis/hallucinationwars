@@ -61,8 +61,8 @@ export class UIOverlay {
             "position:absolute;bottom:8px;left:8px;font-family:monospace;" +
             "font-size:11px;color:#666;z-index:10;line-height:1.6;";
         hints.innerHTML =
-            "WASD: Pan | Q/E: Rotate | R/F: Zoom | Z/X: Tilt | Scroll: Zoom | MMB: Orbit | RMB Drag: Pan<br>" +
-            "LMB: Select | Shift+LMB: Add | Drag: Box select | RMB Click: Move | Edge: Pan";
+            "WASD: Pan | LMB Drag: Pan | Q/E: Rotate | MMB: Orbit | R/F: Zoom | Z/X: Tilt | Scroll: Zoom<br>" +
+            "LMB: Select | Shift+LMB: Add | RMB Drag: Box select | RMB: Move | Edge: Pan";
         container.appendChild(hints);
     }
 

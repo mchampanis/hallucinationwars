@@ -57,6 +57,7 @@ Both developers run their own Claude Code instance. To keep both Claudes in sync
 ### Working Conventions
 
 - **Start every session with `/refresh`.** This catches you up on everything - git history, issues, shared files, memory. If `.memory/` doesn't exist yet, `/refresh` will create it for you.
+- **Remind the developer of outstanding work.** After catching up, briefly list open issues from `ISSUES.md` and next steps from `.memory/active-context.md`.
 - **Never commit autonomously.** Your human handles all git operations.
 - **One task at a time** unless told otherwise.
 - **Ask before rewriting.** Never throw away an existing implementation without explicit permission.

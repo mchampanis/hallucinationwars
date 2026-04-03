@@ -19,7 +19,11 @@ Three.js + cannon-es + Wasmoon + PeerJS + Vite + TypeScript. See `.memory/archit
 
 ## Build & Run
 
-No build system yet.
+`npm run dev -- --host` or `scripts/dev.ps1` / `scripts/dev.sh`.
+
+## Outstanding Work
+
+At the start of each session, after `/refresh`, remind the developer of any open issues in `ISSUES.md` and unfinished next steps in `.memory/active-context.md`. Keep it brief - a short list, not a wall of text.
 
 ## Code Conventions
 
