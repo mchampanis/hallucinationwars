@@ -78,7 +78,8 @@ export class Game {
         this.scene.add(hemisphere);
     }
 
-    start(): void {
+    async start(): Promise<void> {
+        await this.units.preload();
         this.units.spawnTestUnits();
         this.animate();
     }

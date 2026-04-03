@@ -1,8 +1,14 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { clone as skeletonClone } from "three/addons/utils/SkeletonUtils.js";
 import { TerrainQuery } from "./terrain";
 
 const UNIT_SPEED = 8;
 const UNIT_RADIUS = 0.5;
+const TANK_SCALE = 0.2;
+// Half-dimensions of the tank footprint used for terrain slope sampling
+const CONFORM_HALF_LEN = 1.0;
+const CONFORM_HALF_WIDTH = 0.6;
 
 export type Team = "red" | "blue";
 
@@ -11,10 +17,12 @@ export interface Unit {
     team: Team;
     mesh: THREE.Group;
     body: THREE.Mesh;
+    modelRoot: THREE.Group | null;
     healthBar: THREE.Mesh;
     healthBg: THREE.Mesh;
     selectionRing: THREE.Mesh;
     position: THREE.Vector3;
+    yaw: number;
     target: THREE.Vector3 | null;
     health: number;
     maxHealth: number;
@@ -29,10 +37,57 @@ export class UnitManager {
     private units: Unit[] = [];
     private scene: THREE.Scene;
     private terrain: TerrainQuery;
+    private tankTemplate: THREE.Group | null = null;
 
     constructor(scene: THREE.Scene, terrain: TerrainQuery) {
         this.scene = scene;
         this.terrain = terrain;
+    }
+
+    async preload(): Promise<void> {
+        const loader = new GLTFLoader();
+        try {
+            const gltf = await loader.loadAsync("/assets/models/tank_1.glb");
+            this.tankTemplate = gltf.scene;
+        } catch (e) {
+            console.warn("Failed to load tank model, using capsule fallback", e);
+        }
+    }
+
+    private buildTankModel(team: Team): THREE.Group | null {
+        if (!this.tankTemplate) return null;
+        const model = skeletonClone(this.tankTemplate) as THREE.Group;
+        model.scale.setScalar(TANK_SCALE);
+        model.rotation.y = Math.PI / 2; // model's natural front is -X; rotate to face +Z (forward)
+
+        // Lift so the hull bottom sits at y=0.
+        // updateMatrixWorld must be called first so Box3.setFromObject uses correct transforms.
+        // (Without it, SkinnedMesh world matrices are stale and the bbox is wrong.)
+        model.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(model);
+        model.position.y = -box.min.y;
+
+        const tint =
+            team === "red"
+                ? new THREE.Color(1.0, 0.35, 0.35)
+                : new THREE.Color(0.35, 0.5, 1.0);
+        model.traverse((child) => {
+            if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+                const applyTint = (m: THREE.Material): THREE.Material => {
+                    const mat = (m as THREE.MeshStandardMaterial).clone();
+                    mat.color.multiply(tint);
+                    return mat;
+                };
+                if (Array.isArray(child.material)) {
+                    child.material = child.material.map(applyTint);
+                } else {
+                    child.material = applyTint(child.material);
+                }
+            }
+        });
+        return model;
     }
 
     spawnTestUnits(): void {
@@ -61,15 +116,27 @@ export class UnitManager {
         const spawnPos = this.findPassableNear(x, z);
         const h = this.terrain.getHeightAt(spawnPos.x, spawnPos.z);
 
-        // Body - capsule shape
-        const bodyGeo = new THREE.CapsuleGeometry(UNIT_RADIUS, 1.0, 4, 8);
-        const bodyMat = new THREE.MeshLambertMaterial({
-            color: team === "red" ? 0xcc3333 : 0x3333cc,
-        });
+        // Invisible hitbox used for raycasting and hover/selection
+        const bodyGeo = new THREE.BoxGeometry(2.0, 1.5, 3.0);
+        const bodyMat = new THREE.MeshBasicMaterial({ visible: false });
         const body = new THREE.Mesh(bodyGeo, bodyMat);
-        body.castShadow = true;
-        body.position.y = 1.0;
+        body.position.y = 0.75;
         group.add(body);
+
+        // Visual model - GLB tank or capsule fallback
+        const modelRoot = this.buildTankModel(team);
+        if (modelRoot) {
+            group.add(modelRoot);
+        } else {
+            const fallbackGeo = new THREE.CapsuleGeometry(UNIT_RADIUS, 1.0, 4, 8);
+            const fallbackMat = new THREE.MeshLambertMaterial({
+                color: team === "red" ? 0xcc3333 : 0x3333cc,
+            });
+            const fallback = new THREE.Mesh(fallbackGeo, fallbackMat);
+            fallback.castShadow = true;
+            fallback.position.y = 1.0;
+            group.add(fallback);
+        }
 
         // Selection ring
         const ringGeo = new THREE.RingGeometry(0.8, 1.0, 24);
@@ -112,10 +179,12 @@ export class UnitManager {
             team,
             mesh: group,
             body,
+            modelRoot,
             healthBar: hb,
             healthBg: hbBg,
             selectionRing: ring,
             position: group.position,
+            yaw: 0,
             target: null,
             health: 100,
             maxHealth: 100,
@@ -168,18 +237,14 @@ export class UnitManager {
                 if (this.terrain.isPassable(nx, nz)) {
                     unit.position.x = nx;
                     unit.position.z = nz;
-
-                    // Face movement direction
-                    unit.mesh.rotation.y = Math.atan2(dx, dz);
+                    unit.yaw = Math.atan2(dx, dz);
                 }
-
-                // Snap to terrain height
-                unit.position.y = this.terrain.getHeightAt(
-                    unit.position.x,
-                    unit.position.z
-                );
             }
         }
+
+        // Always snap to terrain height and conform rotation to slope
+        unit.position.y = this.terrain.getHeightAt(unit.position.x, unit.position.z);
+        this.conformToTerrain(unit);
 
         // Update visuals
         unit.selectionRing.visible = unit.selected || unit.hovered;
@@ -200,9 +265,48 @@ export class UnitManager {
         else if (healthPct > 0.3) hbColor.setHex(0xcccc00);
         else hbColor.setHex(0xcc0000);
 
-        // Body glow on hover
-        const bodyMat = unit.body.material as THREE.MeshLambertMaterial;
-        bodyMat.emissive.setHex(unit.hovered ? 0x222222 : 0x000000);
+        // Model glow on hover
+        if (unit.modelRoot) {
+            unit.modelRoot.traverse((child) => {
+                if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
+                    const mat = child.material as THREE.MeshStandardMaterial;
+                    if (mat.emissive) {
+                        mat.emissive.setHex(unit.hovered ? 0x222222 : 0x000000);
+                    }
+                }
+            });
+        }
+    }
+
+    private conformToTerrain(unit: Unit): void {
+        const { x, z } = unit.position;
+        const sinY = Math.sin(unit.yaw);
+        const cosY = Math.cos(unit.yaw);
+
+        // Sample terrain height at 4 corners of the tank footprint
+        const hFL = this.terrain.getHeightAt(x + sinY * CONFORM_HALF_LEN - cosY * CONFORM_HALF_WIDTH, z + cosY * CONFORM_HALF_LEN + sinY * CONFORM_HALF_WIDTH);
+        const hFR = this.terrain.getHeightAt(x + sinY * CONFORM_HALF_LEN + cosY * CONFORM_HALF_WIDTH, z + cosY * CONFORM_HALF_LEN - sinY * CONFORM_HALF_WIDTH);
+        const hBL = this.terrain.getHeightAt(x - sinY * CONFORM_HALF_LEN - cosY * CONFORM_HALF_WIDTH, z - cosY * CONFORM_HALF_LEN + sinY * CONFORM_HALF_WIDTH);
+        const hBR = this.terrain.getHeightAt(x - sinY * CONFORM_HALF_LEN + cosY * CONFORM_HALF_WIDTH, z - cosY * CONFORM_HALF_LEN - sinY * CONFORM_HALF_WIDTH);
+
+        const hFront = (hFL + hFR) * 0.5;
+        const hBack  = (hBL + hBR) * 0.5;
+        const hLeft  = (hFL + hBL) * 0.5;
+        const hRight = (hFR + hBR) * 0.5;
+
+        // Build surface vectors along the tank's forward and right axes
+        const forward = new THREE.Vector3(sinY * 2 * CONFORM_HALF_LEN, hFront - hBack, cosY * 2 * CONFORM_HALF_LEN).normalize();
+        const right   = new THREE.Vector3(cosY * 2 * CONFORM_HALF_WIDTH, hRight - hLeft, -sinY * 2 * CONFORM_HALF_WIDTH).normalize();
+
+        // Surface normal = forward × right
+        const normal = new THREE.Vector3().crossVectors(forward, right).normalize();
+
+        // Re-derive right so all three axes are orthogonal
+        right.crossVectors(normal, forward).normalize();
+
+        // Build and apply rotation from the three orthogonal basis vectors
+        const matrix = new THREE.Matrix4().makeBasis(right, normal, forward);
+        unit.mesh.setRotationFromMatrix(matrix);
     }
 
     raycastUnit(raycaster: THREE.Raycaster): Unit | null {
