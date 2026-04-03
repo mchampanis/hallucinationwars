@@ -21,8 +21,9 @@
 # Markdown
 *.md text eol=lf
 
-# Shell
+# Shell / Scripts
 *.sh text eol=lf
+*.ps1 text eol=lf
 
 # Binary
 *.png binary
@@ -34,4 +35,4 @@
 *.ttf binary
 *.otf binary
 *.glb binary
-*.gltf binary
+*.gltf text eol=lf

@@ -13,6 +13,7 @@ Bring yourself fully up to date with the current state of the project. Another d
     - `COLLAB.md`
     - `ISSUES.md`
     - `README.md`
+    - `ETHICS.md` (if it exists)
 4. Read all files in `.memory/` if they exist:
     - `.memory/project-context.md`
     - `.memory/active-context.md`

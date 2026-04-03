@@ -46,7 +46,7 @@ if (Get-Command code -ErrorAction SilentlyContinue) {
         "editorconfig.editorconfig"
     )
     foreach ($ext in $extensions) {
-        code --install-extension $ext --force 2>$null
+        code --install-extension $ext --force
     }
     Write-Host "[OK] Extensions installed" -ForegroundColor Green
 } else {

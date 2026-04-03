@@ -2,7 +2,7 @@
 
 ## Project
 
-2-player RTS with LLM strategic advisors. See `.memory/project-context.md` for full concept.
+2-player RTS with LLM strategic advisors. See `.memory/project-context.md` for full concept (created by `/refresh` on first session).
 
 ## Collaboration
 
@@ -33,5 +33,5 @@ No build system yet.
 Project-level skills are in `.claude/skills/`:
 
 - `/refresh` - **Run this at the start of every session.** Catches up on git history, issues, shared files, and memory. Creates `.memory/` if it doesn't exist yet.
-- `/check` - Review all project code for bugs, smells, dead code, and correctness.
+- `/check` - Review and fix project code for bugs, smells, dead code, and correctness.
 - `/research <topic>` - Fact-checked research with source verification and step-by-step reasoning.

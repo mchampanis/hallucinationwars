@@ -57,12 +57,16 @@ Other available skills: `/check` (review code for bugs and smells) and `/researc
 ### Collaboration
 
 - **Live Share**: Open the project in VS Code, start or join a Live Share session. The workspace is pre-configured with `liveshare.populateGitCoAuthors` enabled so commits reflect both contributors.
-- **GitHub**: Push/pull from `main`. Coordinate on Discord `#github-hw` (webhook active).
+- **GitHub**: `main` is protected. Work on feature branches, merge via PR. Coordinate on Discord `#github-hw` (webhook active).
 - **Discord**: All GitHub activity (pushes, PRs, issues) posts to `#github-hw` automatically.
 
 ## Status
 
 Early design phase. No playable build yet.
+
+## Ethics
+
+See [ETHICS.md](ETHICS.md) for our position on AI-assisted development.
 
 ## License
 
