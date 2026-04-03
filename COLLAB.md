@@ -15,7 +15,7 @@ Both developers use Claude Code as their AI pair programmer.
 
 - **Discord**: `#github-hw` channel for async discussion. GitHub webhook posts all repo activity there automatically.
 - **VS Code Live Share**: For real-time pairing sessions. Workspace is pre-configured (see `.vscode/`).
-- **GitHub**: Main branch, PRs for non-trivial changes.
+- **GitHub**: `main` is protected. All changes go through feature branches and PRs.
 
 ## Development Setup
 
@@ -90,6 +90,44 @@ Maintain a `.memory/` directory as persistent context across sessions. This is g
 - **Keep architecture current.** If a task changes patterns or structure, update `architecture.md` immediately.
 - **progress.md is for context, not diffs.** Record decisions, tradeoffs, blockers. Don't duplicate git log.
 - **Task tracking stays in ISSUES.md.** "Next steps" in `active-context.md` means the logical continuation of current work, not the backlog.
+
+## Git Conventions
+
+### Commit Messages
+
+Follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+```
+
+Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `style`, `ci`
+
+Examples:
+```
+feat(units): add Lua blueprint parser
+fix(physics): prevent units clipping through terrain
+docs(collab): add token economy design notes
+refactor(map): extract resource placement into generator
+chore: update VS Code extensions list
+```
+
+### Branch Naming
+
+Use `type/short-description` branches that mirror commit types:
+
+| Prefix | Use |
+|--------|-----|
+| `feat/` | New features (`feat/unit-designer`, `feat/procedural-map`) |
+| `fix/` | Bug fixes (`fix/lua-sandbox-escape`, `fix/pathfinding-crash`) |
+| `refactor/` | Code restructuring (`refactor/material-system`) |
+| `docs/` | Documentation only (`docs/token-economy`) |
+| `chore/` | Tooling, deps, config (`chore/eslint-setup`) |
+| `test/` | Test additions/changes (`test/combat-resolution`) |
+
+Keep branch names short and lowercase with hyphens. `main` is protected - all changes go through branches and PRs.
 
 ## Code Style
 

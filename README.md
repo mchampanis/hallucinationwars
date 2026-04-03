@@ -52,7 +52,7 @@ Both developers use [Claude Code](https://claude.ai/code) as their AI pair progr
 2. Run `/refresh` to get a full summary of the project state, open issues, and next steps
 3. If this is your first session, `/refresh` will also create your local `.memory/` directory
 
-See `COLLAB.md` for the full collaboration guide.
+Other available skills: `/check` (review code for bugs and smells) and `/research <topic>` (fact-checked research). See `COLLAB.md` for the full collaboration guide.
 
 ### Collaboration
 
