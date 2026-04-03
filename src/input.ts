@@ -6,9 +6,9 @@ import { CameraController } from "./camera";
 export class InputManager {
     private raycaster: THREE.Raycaster;
     private mouse: THREE.Vector2;
-    private isDragging: boolean;
-    private dragStart: THREE.Vector2;
-    private dragEnd: THREE.Vector2;
+    private rightDragging: boolean;
+    private rightDragStart: THREE.Vector2;
+    private rightDragEnd: THREE.Vector2;
     private dragBox: HTMLDivElement;
     private hoveredUnit: Unit | null;
     private terrain: TerrainQuery;
@@ -24,9 +24,9 @@ export class InputManager {
     ) {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
-        this.isDragging = false;
-        this.dragStart = new THREE.Vector2();
-        this.dragEnd = new THREE.Vector2();
+        this.rightDragging = false;
+        this.rightDragStart = new THREE.Vector2();
+        this.rightDragEnd = new THREE.Vector2();
         this.hoveredUnit = null;
         this.terrain = terrain;
         this.cameraController = cameraController;
@@ -41,11 +41,12 @@ export class InputManager {
     }
 
     private bindEvents(): void {
+        // Left click - select (only fires if camera didn't drag)
         this.domElement.addEventListener("mousedown", (e) => {
-            if (e.button === 0) { // Left click
-                this.isDragging = true;
-                this.dragStart.set(e.clientX, e.clientY);
-                this.dragEnd.set(e.clientX, e.clientY);
+            if (e.button === 2) { // Right mouse - box select
+                this.rightDragging = true;
+                this.rightDragStart.set(e.clientX, e.clientY);
+                this.rightDragEnd.set(e.clientX, e.clientY);
             }
         });
 
@@ -55,20 +56,24 @@ export class InputManager {
                 -(e.clientY / window.innerHeight) * 2 + 1
             );
 
-            if (this.isDragging) {
-                this.dragEnd.set(e.clientX, e.clientY);
+            if (this.rightDragging) {
+                this.rightDragEnd.set(e.clientX, e.clientY);
                 this.updateDragBox();
             }
         });
 
         window.addEventListener("mouseup", (e) => {
-            if (e.button === 0 && this.isDragging) {
-                this.isDragging = false;
+            if (e.button === 0) { // Left click release
+                if (!this.cameraController.leftDragOccurred) {
+                    this.handleLeftClick(e);
+                }
+            } else if (e.button === 2 && this.rightDragging) { // Right release
+                this.rightDragging = false;
                 this.dragBox.style.display = "none";
 
-                const dragDist = this.dragStart.distanceTo(this.dragEnd);
+                const dragDist = this.rightDragStart.distanceTo(this.rightDragEnd);
                 if (dragDist < 5) {
-                    this.handleClick(e);
+                    this.handleRightClick(e);
                 } else {
                     this.handleBoxSelect();
                 }
@@ -77,15 +82,14 @@ export class InputManager {
 
         this.domElement.addEventListener("contextmenu", (e) => {
             e.preventDefault();
-            this.handleRightClick(e);
         });
     }
 
     private updateDragBox(): void {
-        const left = Math.min(this.dragStart.x, this.dragEnd.x);
-        const top = Math.min(this.dragStart.y, this.dragEnd.y);
-        const width = Math.abs(this.dragEnd.x - this.dragStart.x);
-        const height = Math.abs(this.dragEnd.y - this.dragStart.y);
+        const left = Math.min(this.rightDragStart.x, this.rightDragEnd.x);
+        const top = Math.min(this.rightDragStart.y, this.rightDragEnd.y);
+        const width = Math.abs(this.rightDragEnd.x - this.rightDragStart.x);
+        const height = Math.abs(this.rightDragEnd.y - this.rightDragStart.y);
 
         if (width > 5 || height > 5) {
             this.dragBox.style.display = "block";
@@ -96,7 +100,7 @@ export class InputManager {
         }
     }
 
-    private handleClick(e: MouseEvent): void {
+    private handleLeftClick(e: MouseEvent): void {
         this.raycaster.setFromCamera(this.mouse, this.camera);
         const unit = this.units.raycastUnit(this.raycaster);
 
@@ -113,17 +117,14 @@ export class InputManager {
 
     private handleBoxSelect(): void {
         const selected = this.units.getUnitsInScreenBox(
-            this.dragStart,
-            this.dragEnd,
+            this.rightDragStart,
+            this.rightDragEnd,
             this.camera
         );
         this.units.selectMultiple(selected);
     }
 
     private handleRightClick(e: MouseEvent): void {
-        // Skip if right-click was a drag (used for camera panning)
-        if (this.cameraController.rightDragOccurred) return;
-
         const ndc = new THREE.Vector2(
             (e.clientX / window.innerWidth) * 2 - 1,
             -(e.clientY / window.innerHeight) * 2 + 1

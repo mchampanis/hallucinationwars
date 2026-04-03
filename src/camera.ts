@@ -4,6 +4,8 @@ import { TerrainQuery } from "./terrain";
 const PAN_SPEED = 40;
 const EDGE_PAN_SPEED = 30;
 const EDGE_MARGIN = 20;     // Pixels from screen edge to trigger panning
+const DRAG_PAN_SCALE = 0.0015; // Mouse drag pan sensitivity (scaled by zoom)
+const DRAG_DEAD_ZONE = 8;   // Pixels before drag kicks in
 const ZOOM_SPEED = 5;
 const KEY_ZOOM_SPEED = 40;
 const ROTATE_SPEED = 0.005;
@@ -20,10 +22,10 @@ export class CameraController {
     private isRotating: boolean;
     private isPanning: boolean;
     private lastMouse: { x: number; y: number };
-    private rightClickStart: { x: number; y: number };
+    private dragStart: { x: number; y: number };
     private mouseScreenPos: { x: number; y: number };
     private windowFocused: boolean;
-    public rightDragOccurred: boolean;
+    public leftDragOccurred: boolean;
     private terrain: TerrainQuery;
     private mapHalfSize: number;
 
@@ -39,10 +41,10 @@ export class CameraController {
         this.isRotating = false;
         this.isPanning = false;
         this.lastMouse = { x: 0, y: 0 };
-        this.rightClickStart = { x: 0, y: 0 };
+        this.dragStart = { x: 0, y: 0 };
         this.mouseScreenPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         this.windowFocused = true;
-        this.rightDragOccurred = false;
+        this.leftDragOccurred = false;
         this.mapHalfSize = terrain.getMapSize() / 2;
 
         this.bindEvents();
@@ -68,23 +70,23 @@ export class CameraController {
         }, { passive: false });
 
         this.domElement.addEventListener("mousedown", (e) => {
-            if (e.button === 1) { // Middle mouse - rotate
+            if (e.button === 0) { // Left mouse - pan
+                this.isPanning = true;
+                this.leftDragOccurred = false;
+                this.dragStart = { x: e.clientX, y: e.clientY };
+                this.lastMouse = { x: e.clientX, y: e.clientY };
+            } else if (e.button === 1) { // Middle mouse - rotate
                 this.isRotating = true;
                 this.lastMouse = { x: e.clientX, y: e.clientY };
                 e.preventDefault();
-            } else if (e.button === 2) { // Right mouse - pan
-                this.isPanning = true;
-                this.rightDragOccurred = false;
-                this.rightClickStart = { x: e.clientX, y: e.clientY };
-                this.lastMouse = { x: e.clientX, y: e.clientY };
             }
         });
 
         window.addEventListener("mouseup", (e) => {
-            if (e.button === 1) {
-                this.isRotating = false;
-            } else if (e.button === 2) {
+            if (e.button === 0) {
                 this.isPanning = false;
+            } else if (e.button === 1) {
+                this.isRotating = false;
             }
         });
 
@@ -102,7 +104,6 @@ export class CameraController {
             this.windowFocused = true;
         });
         this.domElement.addEventListener("mouseleave", () => {
-            // Reset mouse to center so edge pan stops
             this.mouseScreenPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         });
 
@@ -122,27 +123,27 @@ export class CameraController {
             }
 
             if (this.isPanning) {
-                // Check if we've dragged far enough to count as a drag (not a click)
-                const totalDx = e.clientX - this.rightClickStart.x;
-                const totalDy = e.clientY - this.rightClickStart.y;
-                if (Math.abs(totalDx) > 10 || Math.abs(totalDy) > 10) {
-                    this.rightDragOccurred = true;
+                const totalDx = e.clientX - this.dragStart.x;
+                const totalDy = e.clientY - this.dragStart.y;
+                if (Math.abs(totalDx) > DRAG_DEAD_ZONE || Math.abs(totalDy) > DRAG_DEAD_ZONE) {
+                    this.leftDragOccurred = true;
                 }
 
-                // Scale pan speed by distance (zoom level)
-                const panScale = this.spherical.radius * 0.002;
-                const forward = new THREE.Vector3(
-                    -Math.sin(this.spherical.theta),
-                    0,
-                    -Math.cos(this.spherical.theta)
-                );
-                const right = new THREE.Vector3(
-                    Math.cos(this.spherical.theta),
-                    0,
-                    -Math.sin(this.spherical.theta)
-                );
-                this.target.addScaledVector(right, -dx * panScale);
-                this.target.addScaledVector(forward, dy * panScale);
+                if (this.leftDragOccurred) {
+                    const panScale = this.spherical.radius * DRAG_PAN_SCALE;
+                    const forward = new THREE.Vector3(
+                        -Math.sin(this.spherical.theta),
+                        0,
+                        -Math.cos(this.spherical.theta)
+                    );
+                    const right = new THREE.Vector3(
+                        Math.cos(this.spherical.theta),
+                        0,
+                        -Math.sin(this.spherical.theta)
+                    );
+                    this.target.addScaledVector(right, -dx * panScale);
+                    this.target.addScaledVector(forward, dy * panScale);
+                }
             }
         });
     }
