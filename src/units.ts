@@ -139,7 +139,7 @@ export class UnitManager {
         }
 
         // Selection ring
-        const ringGeo = new THREE.RingGeometry(0.8, 1.0, 24);
+        const ringGeo = new THREE.RingGeometry(1.8, 2.1, 32);
         const ringMat = new THREE.MeshBasicMaterial({
             color: 0x00ff00,
             side: THREE.DoubleSide,
@@ -355,6 +355,36 @@ export class UnitManager {
 
     getAllUnits(): Unit[] {
         return this.units;
+    }
+
+    stopSelected(): void {
+        for (const u of this.units) {
+            if (u.selected) {
+                u.target = null;
+            }
+        }
+    }
+
+    getUnitsById(ids: number[]): Unit[] {
+        const idSet = new Set(ids);
+        return this.units.filter((u) => idSet.has(u.id));
+    }
+
+    getVisibleUnitsOfTeam(team: string, camera: THREE.Camera): Unit[] {
+        const frustum = new THREE.Frustum();
+        const projScreenMatrix = new THREE.Matrix4();
+        projScreenMatrix.multiplyMatrices(
+            camera.projectionMatrix,
+            camera.matrixWorldInverse
+        );
+        frustum.setFromProjectionMatrix(projScreenMatrix);
+
+        return this.units.filter((u) => {
+            if (u.team !== team) return false;
+            const pos = u.position.clone();
+            pos.y += 1; // Center of unit
+            return frustum.containsPoint(pos);
+        });
     }
 
     moveSelectedTo(point: THREE.Vector3): void {

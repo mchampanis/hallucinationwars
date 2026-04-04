@@ -66,8 +66,48 @@ Other available skills: `/check` (review code for bugs and smells) and `/researc
 ### Collaboration
 
 - **Live Share**: Open the project in VS Code, start or join a Live Share session. The workspace is pre-configured with `liveshare.populateGitCoAuthors` enabled so commits reflect both contributors.
-- **GitHub**: `main` is protected. Work on feature branches, merge via PR. Coordinate on Discord `#github-hw` (webhook active).
+- **GitHub**: Push to `main` directly. Use feature branches for multi-day or experimental work. Coordinate on Discord `#github-hw` (webhook active).
 - **Discord**: All GitHub activity (pushes, PRs, issues) posts to `#github-hw` automatically.
+
+## Controls
+
+SC2-style input scheme adapted for browser.
+
+### Camera
+
+| Input | Action |
+|-------|--------|
+| Arrow keys | Pan |
+| Screen edge | Pan |
+| Middle-mouse drag | Pan |
+| Scroll wheel | Zoom |
+| Q / E | Rotate |
+| R / F | Zoom in / out |
+| Z / X | Tilt up / down |
+
+### Selection
+
+| Input | Action |
+|-------|--------|
+| Left-click unit | Select |
+| Left-click ground | Deselect all |
+| Left-drag | Box select |
+| Shift + left-click | Add/remove from selection |
+| Ctrl + left-click unit | Select all visible units of same team |
+| Ctrl + 0-9 | Assign control group |
+| Shift + 0-9 | Add selection to control group |
+| 0-9 | Recall control group |
+| Double-tap 0-9 | Recall group and center camera |
+
+### Commands
+
+| Input | Action |
+|-------|--------|
+| Right-click ground | Move |
+| A + left-click | Attack-move (moves toward point; combat not yet implemented) |
+| S | Stop |
+| H | Hold position |
+| Escape | Cancel command / deselect |
 
 ## Status
 

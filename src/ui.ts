@@ -61,8 +61,9 @@ export class UIOverlay {
             "position:absolute;bottom:8px;left:8px;font-family:monospace;" +
             "font-size:11px;color:#666;z-index:10;line-height:1.6;";
         hints.innerHTML =
-            "WASD: Pan | LMB Drag: Pan | Q/E: Rotate | MMB: Orbit | R/F: Zoom | Z/X: Tilt | Scroll: Zoom<br>" +
-            "LMB: Select | Shift+LMB: Add | RMB Drag: Box select | RMB: Move | Edge: Pan";
+            "Arrows: Pan | MMB Drag: Pan | Q/E: Rotate | R/F: Zoom | Z/X: Tilt | Scroll: Zoom | Edge: Pan<br>" +
+            "LMB: Select | Shift+LMB: Add | Ctrl+LMB: Same team | LMB Drag: Box select | RMB: Move<br>" +
+            "A+LMB: Attack-move | S: Stop | H: Hold | Ctrl+0-9: Set group | 0-9: Select group | Esc: Cancel";
         container.appendChild(hints);
     }
 
