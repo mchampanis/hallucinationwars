@@ -46,3 +46,22 @@
 - Fixed Three.js deprecation warnings (Clock->Timer, PCFSoftShadowMap->PCFShadowMap).
 - No team ownership enforcement yet - both teams selectable by anyone. Deferred to networking phase.
 - Prototype not yet tested by Mike (away from PC).
+
+## 2026-04-04
+
+### [Mike] Session: Controls Overhaul + Housekeeping
+- Dropped branch protection on GitHub - too much friction for 2-person team. Both push to main directly now.
+- Cleaned up dead local branch `feat/tank-models` (merged via PR #2 by Dave). Remote branches already auto-deleted by GitHub.
+- Filed HW-008: encrypted advisor comms and signal intelligence. Each game generates a unique encryption protocol for advisor-player communication. Opposing team can sniff traffic and spend tokens to decrypt - creates espionage layer.
+- Implemented SC2-style input controls:
+  - Left-click select, left-drag box select (was right-drag), right-click move.
+  - Middle-mouse drag for camera pan (was left-drag). Mouse rotate removed, Q/E keyboard rotation stays.
+  - WASD camera pan removed, arrow keys only - frees A/S/H for unit commands.
+  - A + left-click: attack-move command mode (just moves for now, combat TBD).
+  - S: stop, H: hold position, Escape: cancel/deselect.
+  - Control groups: Ctrl+0-9 assign, Shift+0-9 add, 0-9 recall, double-tap centers camera.
+  - Ctrl+click: select all visible units of same team (using frustum culling).
+- Fixed edge panning in browser: removed mouseleave handler that reset mouse position to center. Last-known edge position now persists so panning continues when cursor leaves canvas.
+- Scaled up selection ring from radius 0.8-1.0 to 1.8-2.1 to match Dave's larger 3D tank models.
+- Updated README: added full controls reference table, updated GitHub workflow section (no more branch protection).
+- Updated UI control hints to reflect new bindings.

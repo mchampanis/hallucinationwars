@@ -1,7 +1,7 @@
 # Active Context
 
 ## Current Focus
-First prototype built - procedural map, units, camera, mouse controls, UI. Awaiting Mike's visual feedback.
+Prototype playable. SC2-style controls implemented. Dave contributed 3D tank models (PR #2). Iterating on feel and controls.
 
 ## Recent Decisions
 - **Tech stack**: Three.js + cannon-es + Wasmoon + PeerJS + Vite + TypeScript
@@ -12,12 +12,13 @@ First prototype built - procedural map, units, camera, mouse controls, UI. Await
 - Player control: player moves units with mouse, Lua scripts define unit internals, LLM provides map overlay suggestions.
 - Lua sandbox: absolute safety, no OS access, Wasmoon WASM sandbox, stripped stdlib.
 - Prep phase: no fixed timer, StarCraft-style economic pressure prevents turtling.
-- Main branch protected, all changes via branches + PRs.
+- **Branch protection dropped** - both devs push to main directly, feature branches only for multi-day/experimental work.
+- **SC2-style controls** - left-click select, left-drag box select, right-click move, MMB pan, arrow keys pan. WASD removed to free A/S/H for unit commands. Attack-move (A), stop (S), hold (H), control groups (Ctrl+0-9).
+- **Edge pan fix** - mouse position persists when leaving canvas so edge panning works in browser.
 
 ## What Needs to Happen Next
-1. **Mike tests prototype** - Run `npm run dev -- --host`, check map/controls/units, give feedback.
-2. **Dave onboarding** - Accept GitHub invite, clone, run setup, `/refresh`.
-3. **Iterate on prototype** - Based on feedback: tweak terrain, camera feel, unit movement, UI.
-4. **Team assignment** - Add player team concept (URL param or UI toggle) so each player controls their own units.
-5. **Cortex integration** - Discord bot is in a separate repo (Cortex). Wire it up for cross-Claude context sharing.
-6. **Design doc consolidation** - Issues HW-002 through HW-007 have open questions needing Dave's input.
+1. **Dave onboarding** - Accept GitHub invite, clone, run setup, `/refresh`.
+2. **Team assignment** - Add player team concept (URL param or UI toggle) so each player controls their own units.
+3. **Iterate on prototype** - Tweak terrain, camera feel, unit movement, UI based on playtesting.
+4. **Cortex integration** - Discord bot is in a separate repo (Cortex). Wire it up for cross-Claude context sharing.
+5. **Design doc consolidation** - Issues HW-002 through HW-008 have open questions needing Dave's input.
