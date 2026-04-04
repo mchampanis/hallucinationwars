@@ -314,3 +314,44 @@ No fixed timer for prep phase. Standard RTS flow - player decides when to start 
 - Can players agree to extend prep time? (friendly games)
 - Is there a "ready" button that both players must press to start combat?
 - Or does combat happen naturally as players expand and encounter each other?
+
+---
+
+## HW-008: Encrypted advisor comms and signal intelligence
+
+**Status:** Open
+**Priority:** Medium
+**Added:** 2026-04-04
+
+### Concept
+
+Strategic advisors (LLMs) communicate with their player over a secure channel. The encryption protocol is negotiated and built at game start - each game produces a unique cipher. The opposing team can intercept ("sniff") this traffic and attempt to decode it to learn secrets about the enemy's strategy, unit designs, or resource allocation.
+
+### Design Direction
+
+- At game start, each player's LLM and client establish a comms protocol (encryption scheme, encoding format, key exchange)
+- The protocol is generated per-game so it can't be pre-solved
+- Advisor messages (strategy suggestions, unit blueprints, intel reports) travel over this channel
+- The opposing player can invest resources (tokens? a dedicated unit? a building?) to intercept enemy advisor traffic
+- Intercepted traffic arrives encrypted - the player must spend tokens to have their own LLM attempt decryption
+- Partial decryption yields garbled fragments ("...flank from...build 12...weak point at north...")
+- Full decryption reveals the actual advisor message
+
+### Gameplay Implications
+
+- Creates an espionage layer on top of the existing RTS mechanics
+- Token spend tradeoff: spend on offence/defence vs spend on intelligence gathering
+- Deception becomes viable: send fake "high-priority" messages to bait the enemy into wasting decrypt tokens
+- Ties into HW-002 (token economy) - interception and decryption both cost tokens
+- Ties into HW-002's "intercepting enemy LLM calls" gamification idea but gives it a full mechanical framework
+- The LLM's ability to design encryption AND break encryption is the core tension
+
+### Open Questions
+
+- How is the encryption generated? Does the LLM design it (spending tokens), or is it procedural?
+- Can players upgrade their encryption mid-game (spending more tokens for stronger ciphers)?
+- Is interception passive (always listening) or active (requires building a signals unit/structure)?
+- How much of the opponent's traffic is interceptable? All of it, or only certain message types?
+- Can a player detect that their comms are being intercepted? Counter-intelligence?
+- Does encryption quality degrade under token pressure (cheap cipher = easier to crack)?
+- How do we prevent this from being solved trivially by pattern matching outside the game?
