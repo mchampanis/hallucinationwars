@@ -45,11 +45,18 @@ export interface UnitSensors {
     z: number;
     yaw: number;
     moveCommand: { x: number; z: number } | null;
+    turretYaw: number;
+    turretPitch: number;
+    fireCooldown: number;
+    nearestEnemy: { x: number; z: number; dist: number; health: number } | null;
 }
 
 export interface UnitActuators {
     thrust: number;
     steer: number;
+    turretYaw: number;
+    turretPitch: number;
+    fire: boolean;
     error?: string;
 }
 
@@ -91,21 +98,40 @@ export class LuaBehaviorEngine {
             yaw: sensors.yaw,
             thrust: 0,
             steer: 0,
+            turret_yaw: sensors.turretYaw,
+            turret_pitch: sensors.turretPitch,
+            cooldown: sensors.fireCooldown,
+            fire: false,
         };
         if (sensors.moveCommand !== null) {
             self.target_x = sensors.moveCommand.x;
             self.target_z = sensors.moveCommand.z;
         }
+        if (sensors.nearestEnemy !== null) {
+            self.nearest_enemy_x = sensors.nearestEnemy.x;
+            self.nearest_enemy_z = sensors.nearestEnemy.z;
+            self.nearest_enemy_dist = sensors.nearestEnemy.dist;
+            self.nearest_enemy_health = sensors.nearestEnemy.health;
+        }
 
         try {
             await env.tickFn(self, dt);
         } catch (e) {
-            return { thrust: 0, steer: 0, error: String(e) };
+            return {
+                thrust: 0, steer: 0,
+                turretYaw: sensors.turretYaw, turretPitch: sensors.turretPitch,
+                fire: false, error: String(e),
+            };
         }
 
         const thrust = Math.max(-1, Math.min(1, (self.thrust as number) ?? 0));
         const steer = Math.max(-1, Math.min(1, (self.steer as number) ?? 0));
-        return { thrust, steer };
+        const turretYaw = Math.max(-Math.PI, Math.min(Math.PI,
+            typeof self.turret_yaw === "number" ? self.turret_yaw : sensors.turretYaw));
+        const turretPitch = Math.max(0, Math.min(0.6,
+            typeof self.turret_pitch === "number" ? self.turret_pitch : sensors.turretPitch));
+        const fire = self.fire === true;
+        return { thrust, steer, turretYaw, turretPitch, fire };
     }
 
     destroyEnv(env: UnitLuaEnv): void {
