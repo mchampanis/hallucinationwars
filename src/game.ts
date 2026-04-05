@@ -4,6 +4,7 @@ import { CameraController } from "./camera";
 import { UnitManager } from "./units";
 import { InputManager } from "./input";
 import { UIOverlay } from "./ui";
+import { LuaBehaviorEngine } from "./lua-behavior";
 
 export class Game {
     private renderer: THREE.WebGLRenderer;
@@ -15,6 +16,7 @@ export class Game {
     private input: InputManager;
     private ui: UIOverlay;
     private clock: THREE.Timer;
+    private luaBehavior: LuaBehaviorEngine;
 
     constructor(container: HTMLElement) {
         this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -43,7 +45,8 @@ export class Game {
             this.renderer.domElement,
             this.terrain
         );
-        this.units = new UnitManager(this.scene, this.terrain);
+        this.luaBehavior = new LuaBehaviorEngine();
+        this.units = new UnitManager(this.scene, this.terrain, this.luaBehavior);
         this.input = new InputManager(
             this.renderer.domElement,
             this.camera,
@@ -79,18 +82,19 @@ export class Game {
     }
 
     async start(): Promise<void> {
+        await this.luaBehavior.init();
         await this.units.preload();
         this.units.spawnTestUnits();
         this.animate();
     }
 
-    private animate = (): void => {
+    private animate = async (): Promise<void> => {
         requestAnimationFrame(this.animate);
         this.clock.update();
         const delta = this.clock.getDelta();
 
         this.cameraController.update(delta);
-        this.units.update(delta);
+        await this.units.update(delta);
         this.input.update();
         this.ui.update();
         this.renderer.render(this.scene, this.camera);
