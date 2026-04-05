@@ -15,7 +15,8 @@ export class UIOverlay {
     private resourceBar!: HTMLDivElement;
     private minimap!: HTMLCanvasElement;
     private minimapCtx!: CanvasRenderingContext2D;
-    private attackModeIndicator: HTMLDivElement | null = null;
+    private commandBar: HTMLDivElement | null = null;
+    private cancelBar: HTMLDivElement | null = null;
     private units: UnitManager;
     private input: InputManager;
     private lastSelectedIds: string;
@@ -127,38 +128,45 @@ export class UIOverlay {
             this.input.stopSelectedUnits();
         });
 
+        const moveBtn = makeBtn("→ MOVE", "#64b5f6");
+        moveBtn.addEventListener("pointerdown", (e) => {
+            e.stopPropagation();
+            this.input.enterMoveMode();
+        });
+
         const atkBtn = makeBtn("⊕ ATTACK", "#f4d03f");
         atkBtn.addEventListener("pointerdown", (e) => {
             e.stopPropagation();
             this.input.enterAttackMoveMode();
-            if (this.attackModeIndicator) {
-                this.attackModeIndicator.style.display = "block";
-            }
         });
 
         bar.appendChild(stopBtn);
+        bar.appendChild(moveBtn);
         bar.appendChild(atkBtn);
         container.appendChild(bar);
+        this.commandBar = bar;
 
-        // Attack-move mode indicator banner shown below resource bar
-        const indicator = document.createElement("div");
-        indicator.style.cssText =
-            "position:absolute;top:36px;left:50%;transform:translateX(-50%);" +
-            "background:rgba(244,208,63,0.15);border:1px solid #f4d03f;color:#f4d03f;" +
-            "font-family:monospace;font-size:12px;font-weight:bold;" +
-            "padding:4px 16px;border-radius:4px;z-index:20;display:none;" +
-            "pointer-events:none;white-space:nowrap;";
-        indicator.textContent = "⊕ ATTACK MODE — tap target";
-        container.appendChild(indicator);
-        this.attackModeIndicator = indicator;
+        // Cancel button bar (hidden by default, shown when in command mode)
+        const cancelBar = document.createElement("div");
+        cancelBar.style.cssText =
+            "position:absolute;bottom:8px;left:8px;" +
+            "display:none;flex-direction:row;gap:8px;z-index:20;align-items:flex-end;";
+        const cancelBtn = makeBtn("✕ CANCEL", "#aaa");
+        cancelBtn.addEventListener("pointerdown", (e) => {
+            e.stopPropagation();
+            this.input.cancelMode();
+        });
+        cancelBar.appendChild(cancelBtn);
+        container.appendChild(cancelBar);
+        this.cancelBar = cancelBar;
 
-        // Touch hints (small, below buttons area - actually left of minimap)
+        // Touch hints
         const hint = document.createElement("div");
         hint.style.cssText =
             "position:absolute;bottom:8px;left:50%;transform:translateX(-50%);" +
             "font-family:monospace;font-size:10px;color:#555;z-index:10;" +
             "white-space:nowrap;pointer-events:none;";
-        hint.textContent = "Tap: select/move  •  Drag: pan  •  Pinch: zoom";
+        hint.textContent = "Tap: select  •  Drag: box select  •  2-finger: pan/zoom";
         container.appendChild(hint);
     }
 
@@ -174,10 +182,20 @@ export class UIOverlay {
         container.appendChild(hints);
     }
 
-    clearAttackModeIndicator(): void {
-        if (this.attackModeIndicator) {
-            this.attackModeIndicator.style.display = "none";
+    enterCommandMode(mode: "move" | "attack-move"): void {
+        if (!this.commandBar || !this.cancelBar) return;
+        this.commandBar.style.display = "none";
+        this.cancelBar.style.display = "flex";
+        const cancelBtn = this.cancelBar.querySelector("button");
+        if (cancelBtn) {
+            cancelBtn.textContent = mode === "move" ? "✕ CANCEL MOVE" : "✕ CANCEL ATTACK";
         }
+    }
+
+    exitCommandMode(): void {
+        if (!this.commandBar || !this.cancelBar) return;
+        this.cancelBar.style.display = "none";
+        this.commandBar.style.display = "flex";
     }
 
     update(): void {

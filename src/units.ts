@@ -55,7 +55,7 @@ export class UnitManager {
     async preload(): Promise<void> {
         const loader = new GLTFLoader();
         try {
-            const gltf = await loader.loadAsync("/assets/models/tank_1.glb");
+            const gltf = await loader.loadAsync(import.meta.env.BASE_URL + "assets/models/tank_1.glb");
             this.tankTemplate = gltf.scene;
         } catch (e) {
             console.warn("Failed to load tank model, using capsule fallback", e);

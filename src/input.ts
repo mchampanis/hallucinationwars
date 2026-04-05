@@ -4,7 +4,7 @@ import { TerrainQuery } from "./terrain";
 import { CameraController } from "./camera";
 import type { UIOverlay } from "./ui";
 
-type CommandMode = "none" | "attack-move";
+type CommandMode = "none" | "move" | "attack-move";
 
 const DRAG_THRESHOLD = 5; // Pixels before a click becomes a drag
 const TOUCH_TAP_THRESHOLD = 18; // Larger threshold for finger imprecision
@@ -67,7 +67,8 @@ export class InputManager {
             }
         });
 
-        window.addEventListener("mousemove", (e) => {
+        window.addEventListener("pointermove", (e) => {
+            if (e.pointerType !== "mouse") return;
             this.hasMouse = true;
             this.mouse.set(
                 (e.clientX / window.innerWidth) * 2 - 1,
@@ -160,36 +161,56 @@ export class InputManager {
             e.preventDefault();
         });
 
-        // Touch input: single tap = select or move; drag and multi-touch handled by camera
+        // Touch: one-finger drag = box select, one-finger tap = select/command, two-finger = camera
         let touchStartX = 0;
         let touchStartY = 0;
-        let touchTotalDist = 0;
-        let touchWasMulti = false; // disqualify if a second finger joined
+        let touchDragging = false;
+        let touchWasMulti = false;
 
         this.domElement.addEventListener("touchstart", (e) => {
             if (e.touches.length === 1) {
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
-                touchTotalDist = 0;
+                touchDragging = false;
                 touchWasMulti = false;
+                this.leftDragStart.set(touchStartX, touchStartY);
+                this.leftDragEnd.set(touchStartX, touchStartY);
             } else {
-                touchWasMulti = true; // second finger added — not a tap
+                touchWasMulti = true;
+                if (touchDragging) {
+                    this.dragBox.style.display = "none";
+                    touchDragging = false;
+                }
             }
         }, { passive: true });
 
         this.domElement.addEventListener("touchmove", (e) => {
             if (e.touches.length > 1) {
                 touchWasMulti = true;
-            } else if (e.touches.length === 1) {
+                if (touchDragging) {
+                    this.dragBox.style.display = "none";
+                    touchDragging = false;
+                }
+            } else if (e.touches.length === 1 && !touchWasMulti) {
                 const dx = e.touches[0].clientX - touchStartX;
                 const dy = e.touches[0].clientY - touchStartY;
-                touchTotalDist = Math.sqrt(dx * dx + dy * dy);
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist >= TOUCH_TAP_THRESHOLD) {
+                    touchDragging = true;
+                    this.leftDragEnd.set(e.touches[0].clientX, e.touches[0].clientY);
+                    this.updateDragBox();
+                }
             }
         }, { passive: true });
 
         this.domElement.addEventListener("touchend", (e) => {
-            if (!touchWasMulti && e.changedTouches.length === 1 && touchTotalDist < TOUCH_TAP_THRESHOLD) {
-                const touch = e.changedTouches[0];
+            if (touchWasMulti || e.changedTouches.length !== 1) return;
+            const touch = e.changedTouches[0];
+            if (touchDragging) {
+                this.dragBox.style.display = "none";
+                touchDragging = false;
+                this.handleBoxSelect();
+            } else {
                 this.handleTouchTap(touch.clientX, touch.clientY);
             }
         }, { passive: true });
@@ -310,7 +331,7 @@ export class InputManager {
     private cancelCommandMode(): void {
         this.commandMode = "none";
         this.domElement.style.cursor = "default";
-        this.ui?.clearAttackModeIndicator();
+        this.ui?.exitCommandMode();
     }
 
     private handleTouchTap(clientX: number, clientY: number): void {
@@ -320,8 +341,8 @@ export class InputManager {
         );
         this.raycaster.setFromCamera(ndc, this.camera);
 
-        // In attack-move mode, tap issues the command on terrain
-        if (this.commandMode === "attack-move") {
+        // In a command mode, tap issues the command on terrain then cancels
+        if (this.commandMode === "move" || this.commandMode === "attack-move") {
             const terrainMesh = this.findTerrainMesh();
             if (terrainMesh) {
                 const hits = this.raycaster.intersectObject(terrainMesh);
@@ -333,27 +354,13 @@ export class InputManager {
             return;
         }
 
-        // Try to hit a unit first
+        // No command mode: tap selects a unit or deselects
         const unit = this.units.raycastUnit(this.raycaster);
         if (unit) {
             this.units.selectOnly(unit);
-            return;
+        } else {
+            this.units.deselectAll();
         }
-
-        // Hit terrain: move if units selected, else deselect
-        const selected = this.units.getSelected();
-        const terrainMesh = this.findTerrainMesh();
-        if (terrainMesh) {
-            const hits = this.raycaster.intersectObject(terrainMesh);
-            if (hits.length > 0) {
-                const point = hits[0].point;
-                if (selected.length > 0 && this.terrain.isPassable(point.x, point.z)) {
-                    this.units.moveSelectedTo(point);
-                    return;
-                }
-            }
-        }
-        this.units.deselectAll();
     }
 
     // Public methods for mobile UI buttons
@@ -361,10 +368,19 @@ export class InputManager {
         this.units.stopSelected();
     }
 
+    enterMoveMode(): void {
+        if (this.units.getSelected().length > 0) {
+            this.commandMode = "move";
+            this.domElement.style.cursor = "crosshair";
+            this.ui?.enterCommandMode("move");
+        }
+    }
+
     enterAttackMoveMode(): void {
         if (this.units.getSelected().length > 0) {
             this.commandMode = "attack-move";
             this.domElement.style.cursor = "crosshair";
+            this.ui?.enterCommandMode("attack-move");
         }
     }
 

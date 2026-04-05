@@ -5,7 +5,6 @@ const PAN_SPEED = 40;
 const EDGE_PAN_SPEED = 30;
 const EDGE_MARGIN = 20;     // Pixels from screen edge to trigger panning
 const DRAG_PAN_SCALE = 0.0015; // Mouse drag pan sensitivity (scaled by zoom)
-const DRAG_DEAD_ZONE = 8;   // Pixels before drag kicks in
 const ZOOM_SPEED = 5;
 const KEY_ZOOM_SPEED = 40;
 const KEY_ROTATE_SPEED = 1.5;
@@ -20,9 +19,9 @@ export class CameraController {
     private keys: Set<string>;
     private isPanning: boolean;
     private lastMouse: { x: number; y: number };
-    private dragStart: { x: number; y: number };
     private mouseScreenPos: { x: number; y: number };
     private windowFocused: boolean;
+    private hasMouse: boolean;
     private terrain: TerrainQuery;
     private mapHalfSize: number;
 
@@ -37,9 +36,9 @@ export class CameraController {
         this.keys = new Set();
         this.isPanning = false;
         this.lastMouse = { x: 0, y: 0 };
-        this.dragStart = { x: 0, y: 0 };
         this.mouseScreenPos = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
         this.windowFocused = true;
+        this.hasMouse = false;
         this.mapHalfSize = terrain.getMapSize() / 2;
 
         this.bindEvents();
@@ -68,7 +67,6 @@ export class CameraController {
         this.domElement.addEventListener("mousedown", (e) => {
             if (e.button === 1) {
                 this.isPanning = true;
-                this.dragStart = { x: e.clientX, y: e.clientY };
                 this.lastMouse = { x: e.clientX, y: e.clientY };
                 e.preventDefault();
             }
@@ -85,22 +83,14 @@ export class CameraController {
             if (e.button === 1) e.preventDefault();
         });
 
-        // Touch controls: single-finger pan, two-finger pinch-zoom + pan
+        // Touch controls: two-finger pinch-zoom + pan (one-finger handled by InputManager for box select)
         let prevTouches: { x: number; y: number }[] = [];
         let lastPinchDist = 0;
-        let singleTouchStartX = 0;
-        let singleTouchStartY = 0;
-        let singleTouchPanActive = false;
 
         this.domElement.addEventListener("touchstart", (e) => {
             e.preventDefault();
             prevTouches = Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
-            if (e.touches.length === 1) {
-                singleTouchStartX = e.touches[0].clientX;
-                singleTouchStartY = e.touches[0].clientY;
-                singleTouchPanActive = false;
-            } else if (e.touches.length === 2) {
-                singleTouchPanActive = false;
+            if (e.touches.length === 2) {
                 const dx = e.touches[1].clientX - e.touches[0].clientX;
                 const dy = e.touches[1].clientY - e.touches[0].clientY;
                 lastPinchDist = Math.sqrt(dx * dx + dy * dy);
@@ -111,31 +101,12 @@ export class CameraController {
             e.preventDefault();
             const touches = Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
 
-            if (touches.length === 1 && prevTouches.length === 1) {
-                const totalDx = touches[0].x - singleTouchStartX;
-                const totalDy = touches[0].y - singleTouchStartY;
-                if (!singleTouchPanActive && Math.sqrt(totalDx * totalDx + totalDy * totalDy) > DRAG_DEAD_ZONE) {
-                    singleTouchPanActive = true;
-                }
-                if (singleTouchPanActive) {
-                    const dx = touches[0].x - prevTouches[0].x;
-                    const dy = touches[0].y - prevTouches[0].y;
-                    const panScale = this.spherical.radius * DRAG_PAN_SCALE;
-                    const forward = new THREE.Vector3(
-                        -Math.sin(this.spherical.theta), 0, -Math.cos(this.spherical.theta)
-                    );
-                    const right = new THREE.Vector3(
-                        Math.cos(this.spherical.theta), 0, -Math.sin(this.spherical.theta)
-                    );
-                    this.target.addScaledVector(right, -dx * panScale);
-                    this.target.addScaledVector(forward, dy * panScale);
-                }
-            } else if (touches.length === 2 && prevTouches.length >= 2) {
+            if (touches.length === 2 && prevTouches.length >= 2) {
                 // Pinch-to-zoom
                 const dx = touches[1].x - touches[0].x;
                 const dy = touches[1].y - touches[0].y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                const zoomDelta = (lastPinchDist - dist) * 0.05;
+                const zoomDelta = (lastPinchDist - dist) * 0.20;
                 this.spherical.radius = THREE.MathUtils.clamp(
                     this.spherical.radius + zoomDelta,
                     MIN_DISTANCE,
@@ -164,14 +135,6 @@ export class CameraController {
 
         this.domElement.addEventListener("touchend", (e) => {
             prevTouches = Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
-            if (e.touches.length === 0) {
-                singleTouchPanActive = false;
-            } else if (e.touches.length === 1) {
-                // Transition from 2-finger back to 1-finger
-                singleTouchStartX = e.touches[0].clientX;
-                singleTouchStartY = e.touches[0].clientY;
-                singleTouchPanActive = false;
-            }
         }, { passive: false });
 
         document.addEventListener("visibilitychange", () => {
@@ -187,7 +150,9 @@ export class CameraController {
         window.addEventListener("focus", () => {
             this.windowFocused = true;
         });
-        window.addEventListener("mousemove", (e) => {
+        window.addEventListener("pointermove", (e) => {
+            if (e.pointerType !== "mouse") return;
+            this.hasMouse = true;
             this.mouseScreenPos = { x: e.clientX, y: e.clientY };
             const dx = e.clientX - this.lastMouse.x;
             const dy = e.clientY - this.lastMouse.y;
@@ -238,8 +203,8 @@ export class CameraController {
             this.target.addScaledVector(right, panAmount);
         }
 
-        // Screen edge panning (only when window is focused)
-        if (this.windowFocused) {
+        // Screen edge panning (only when window is focused and a mouse is present)
+        if (this.windowFocused && this.hasMouse) {
             const edgePan = EDGE_PAN_SPEED * delta;
             const mx = this.mouseScreenPos.x;
             const my = this.mouseScreenPos.y;
