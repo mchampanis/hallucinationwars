@@ -2,10 +2,12 @@ import * as THREE from "three";
 import { UnitManager, Unit } from "./units";
 import { TerrainQuery } from "./terrain";
 import { CameraController } from "./camera";
+import type { UIOverlay } from "./ui";
 
 type CommandMode = "none" | "attack-move";
 
 const DRAG_THRESHOLD = 5; // Pixels before a click becomes a drag
+const TOUCH_TAP_THRESHOLD = 18; // Larger threshold for finger imprecision
 const DOUBLE_TAP_MS = 300; // Max time between taps for double-tap
 
 export class InputManager {
@@ -22,6 +24,8 @@ export class InputManager {
     private controlGroups: Map<number, number[]>;
     private lastGroupTap: { group: number; time: number };
     private onEditScript: ((unit: Unit) => void) | null = null;
+    private hasMouse: boolean;
+    private ui: UIOverlay | null = null;
 
     constructor(
         private domElement: HTMLElement,
@@ -42,6 +46,7 @@ export class InputManager {
         this.commandMode = "none";
         this.controlGroups = new Map();
         this.lastGroupTap = { group: -1, time: 0 };
+        this.hasMouse = false;
 
         this.dragBox = document.createElement("div");
         this.dragBox.style.cssText =
@@ -63,6 +68,7 @@ export class InputManager {
         });
 
         window.addEventListener("mousemove", (e) => {
+            this.hasMouse = true;
             this.mouse.set(
                 (e.clientX / window.innerWidth) * 2 - 1,
                 -(e.clientY / window.innerHeight) * 2 + 1
@@ -153,6 +159,40 @@ export class InputManager {
         this.domElement.addEventListener("contextmenu", (e) => {
             e.preventDefault();
         });
+
+        // Touch input: single tap = select or move; drag and multi-touch handled by camera
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchTotalDist = 0;
+        let touchWasMulti = false; // disqualify if a second finger joined
+
+        this.domElement.addEventListener("touchstart", (e) => {
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                touchTotalDist = 0;
+                touchWasMulti = false;
+            } else {
+                touchWasMulti = true; // second finger added — not a tap
+            }
+        }, { passive: true });
+
+        this.domElement.addEventListener("touchmove", (e) => {
+            if (e.touches.length > 1) {
+                touchWasMulti = true;
+            } else if (e.touches.length === 1) {
+                const dx = e.touches[0].clientX - touchStartX;
+                const dy = e.touches[0].clientY - touchStartY;
+                touchTotalDist = Math.sqrt(dx * dx + dy * dy);
+            }
+        }, { passive: true });
+
+        this.domElement.addEventListener("touchend", (e) => {
+            if (!touchWasMulti && e.changedTouches.length === 1 && touchTotalDist < TOUCH_TAP_THRESHOLD) {
+                const touch = e.changedTouches[0];
+                this.handleTouchTap(touch.clientX, touch.clientY);
+            }
+        }, { passive: true });
     }
 
     private updateDragBox(): void {
@@ -263,9 +303,73 @@ export class InputManager {
         ) as THREE.Mesh | undefined;
     }
 
+    setUI(ui: UIOverlay): void {
+        this.ui = ui;
+    }
+
     private cancelCommandMode(): void {
         this.commandMode = "none";
         this.domElement.style.cursor = "default";
+        this.ui?.clearAttackModeIndicator();
+    }
+
+    private handleTouchTap(clientX: number, clientY: number): void {
+        const ndc = new THREE.Vector2(
+            (clientX / window.innerWidth) * 2 - 1,
+            -(clientY / window.innerHeight) * 2 + 1
+        );
+        this.raycaster.setFromCamera(ndc, this.camera);
+
+        // In attack-move mode, tap issues the command on terrain
+        if (this.commandMode === "attack-move") {
+            const terrainMesh = this.findTerrainMesh();
+            if (terrainMesh) {
+                const hits = this.raycaster.intersectObject(terrainMesh);
+                if (hits.length > 0 && this.terrain.isPassable(hits[0].point.x, hits[0].point.z)) {
+                    this.units.moveSelectedTo(hits[0].point);
+                }
+            }
+            this.cancelCommandMode();
+            return;
+        }
+
+        // Try to hit a unit first
+        const unit = this.units.raycastUnit(this.raycaster);
+        if (unit) {
+            this.units.selectOnly(unit);
+            return;
+        }
+
+        // Hit terrain: move if units selected, else deselect
+        const selected = this.units.getSelected();
+        const terrainMesh = this.findTerrainMesh();
+        if (terrainMesh) {
+            const hits = this.raycaster.intersectObject(terrainMesh);
+            if (hits.length > 0) {
+                const point = hits[0].point;
+                if (selected.length > 0 && this.terrain.isPassable(point.x, point.z)) {
+                    this.units.moveSelectedTo(point);
+                    return;
+                }
+            }
+        }
+        this.units.deselectAll();
+    }
+
+    // Public methods for mobile UI buttons
+    stopSelectedUnits(): void {
+        this.units.stopSelected();
+    }
+
+    enterAttackMoveMode(): void {
+        if (this.units.getSelected().length > 0) {
+            this.commandMode = "attack-move";
+            this.domElement.style.cursor = "crosshair";
+        }
+    }
+
+    cancelMode(): void {
+        this.cancelCommandMode();
     }
 
     // Control groups
@@ -311,7 +415,9 @@ export class InputManager {
     }
 
     update(): void {
-        // Hover detection
+        // Hover detection (skip on touch-only devices — no cursor to hover with)
+        if (!this.hasMouse) return;
+
         this.raycaster.setFromCamera(this.mouse, this.camera);
         const hovered = this.units.raycastUnit(this.raycaster);
 
