@@ -21,6 +21,7 @@ export class InputManager {
     private commandMode: CommandMode;
     private controlGroups: Map<number, number[]>;
     private lastGroupTap: { group: number; time: number };
+    private onEditScript: ((unit: Unit) => void) | null = null;
 
     constructor(
         private domElement: HTMLElement,
@@ -120,6 +121,14 @@ export class InputManager {
                     this.cancelCommandMode();
                 } else {
                     this.units.deselectAll();
+                }
+                return;
+            }
+
+            if (key === "e" && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+                const selected = this.units.getSelected();
+                if (selected.length === 1 && this.onEditScript) {
+                    this.onEditScript(selected[0]);
                 }
                 return;
             }
@@ -310,6 +319,10 @@ export class InputManager {
             if (hovered) this.units.setHover(hovered, true);
             this.hoveredUnit = hovered;
         }
+    }
+
+    setEditScriptCallback(cb: (unit: Unit) => void): void {
+        this.onEditScript = cb;
     }
 
     getSelectedCount(): number {
