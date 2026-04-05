@@ -106,14 +106,16 @@ export class UIOverlay {
                 `border-radius:3px;font-family:monospace;font-size:12px;cursor:pointer;">Edit Script (E)</button>` +
                 `</div>`;
 
-            if (u.errorLog.length > 0) {
-                html += `<div style="color:#f44336;margin-top:6px;font-size:11px;white-space:pre-wrap;">` +
-                    `Errors:\n${u.errorLog.slice(-3).join("\n")}</div>`;
-            }
-
             this.selectionPanel.innerHTML = html;
 
-            const editBtn = document.getElementById("hw-edit-script");
+            if (u.errorLog.length > 0) {
+                const errDiv = document.createElement("div");
+                errDiv.style.cssText = "color:#f44336;margin-top:6px;font-size:11px;white-space:pre-wrap;";
+                errDiv.textContent = "Errors:\n" + u.errorLog.slice(-3).join("\n");
+                this.selectionPanel.appendChild(errDiv);
+            }
+
+            const editBtn = this.selectionPanel.querySelector<HTMLButtonElement>("#hw-edit-script");
             if (editBtn) {
                 editBtn.addEventListener("click", () => this.openEditor(u));
             }

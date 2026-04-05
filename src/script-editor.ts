@@ -101,10 +101,6 @@ export class ScriptEditorModal {
         this.callbacks = null;
     }
 
-    get opened(): boolean {
-        return this.isOpen;
-    }
-
     private async handleApply(): Promise<void> {
         if (!this.callbacks) return;
         const error = await this.callbacks.onApply(this.textarea.value);

@@ -128,6 +128,7 @@ export class InputManager {
             if (key === "e" && !e.ctrlKey && !e.altKey && !e.shiftKey) {
                 const selected = this.units.getSelected();
                 if (selected.length === 1 && this.onEditScript) {
+                    e.stopPropagation();
                     this.onEditScript(selected[0]);
                 }
                 return;
