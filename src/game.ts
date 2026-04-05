@@ -89,7 +89,6 @@ export class Game {
     }
 
     private animate = async (): Promise<void> => {
-        requestAnimationFrame(this.animate);
         this.clock.update();
         const delta = this.clock.getDelta();
 
@@ -98,6 +97,7 @@ export class Game {
         this.input.update();
         this.ui.update();
         this.renderer.render(this.scene, this.camera);
+        requestAnimationFrame(this.animate);
     };
 
     private onResize(): void {

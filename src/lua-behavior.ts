@@ -37,6 +37,7 @@ dofile = nil
 loadfile = nil
 debug = nil
 package = nil
+print = nil
 `;
 
 export interface UnitSensors {

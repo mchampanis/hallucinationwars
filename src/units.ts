@@ -268,6 +268,7 @@ export class UnitManager {
             if (out.error) {
                 unit.errorLog.push(out.error);
                 if (unit.errorLog.length > ERROR_LOG_MAX) unit.errorLog.shift();
+                return;
             }
 
             // Apply actuators
