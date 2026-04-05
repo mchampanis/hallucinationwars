@@ -1,5 +1,7 @@
 import { UnitManager, Unit } from "./units";
 import { InputManager } from "./input";
+import { ScriptEditorModal } from "./script-editor";
+import { DEFAULT_SCRIPT } from "./lua-behavior";
 
 export class UIOverlay {
     private selectionPanel: HTMLDivElement;
@@ -8,11 +10,12 @@ export class UIOverlay {
     private minimapCtx: CanvasRenderingContext2D;
     private units: UnitManager;
     private lastSelectedIds: string;
+    private editor: ScriptEditorModal;
 
     constructor(
         container: HTMLElement,
         units: UnitManager,
-        _input: InputManager
+        input: InputManager
     ) {
         this.units = units;
         this.lastSelectedIds = "";
@@ -43,6 +46,9 @@ export class UIOverlay {
             "font-family:monospace;font-size:12px;color:#ddd;z-index:10;" +
             "display:none;";
         container.appendChild(this.selectionPanel);
+
+        this.editor = new ScriptEditorModal(container);
+        input.setEditScriptCallback((unit) => this.openEditor(unit));
 
         // Minimap
         this.minimap = document.createElement("canvas");
@@ -90,13 +96,27 @@ export class UIOverlay {
         if (selected.length === 1) {
             const u = selected[0];
             const teamColor = u.team === "red" ? "#e57373" : "#64b5f6";
-            this.selectionPanel.innerHTML =
-                `<div style="color:${teamColor};font-size:14px;margin-bottom:4px;">` +
-                `${u.name}</div>` +
+            let html =
+                `<div style="color:${teamColor};font-size:14px;margin-bottom:4px;">${u.name}</div>` +
                 `<div>Team: <span style="color:${teamColor}">${u.team}</span></div>` +
                 `<div>Health: ${u.health}/${u.maxHealth}</div>` +
-                `<div style="color:#888;margin-top:4px;">` +
-                `Pos: ${u.position.x.toFixed(1)}, ${u.position.z.toFixed(1)}</div>`;
+                `<div style="color:#888;margin-top:4px;">Pos: ${u.position.x.toFixed(1)}, ${u.position.z.toFixed(1)}</div>` +
+                `<div style="margin-top:6px;">` +
+                `<button id="hw-edit-script" style="background:#1565c0;color:#fff;border:none;padding:4px 10px;` +
+                `border-radius:3px;font-family:monospace;font-size:12px;cursor:pointer;">Edit Script (E)</button>` +
+                `</div>`;
+
+            if (u.errorLog.length > 0) {
+                html += `<div style="color:#f44336;margin-top:6px;font-size:11px;white-space:pre-wrap;">` +
+                    `Errors:\n${u.errorLog.slice(-3).join("\n")}</div>`;
+            }
+
+            this.selectionPanel.innerHTML = html;
+
+            const editBtn = document.getElementById("hw-edit-script");
+            if (editBtn) {
+                editBtn.addEventListener("click", () => this.openEditor(u));
+            }
         } else {
             const redCount = selected.filter((u) => u.team === "red").length;
             const blueCount = selected.filter((u) => u.team === "blue").length;
@@ -110,6 +130,16 @@ export class UIOverlay {
             }
             this.selectionPanel.innerHTML = html;
         }
+    }
+
+    private openEditor(unit: Unit): void {
+        this.editor.open(unit.name, unit.luaScript, unit.errorLog, {
+            onApply: async (script: string) => {
+                const err = await this.units.setUnitScript(unit, script);
+                return err ? err.message : null;
+            },
+            onReset: () => DEFAULT_SCRIPT,
+        });
     }
 
     private updateMinimap(): void {
