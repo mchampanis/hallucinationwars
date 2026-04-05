@@ -35,6 +35,8 @@ require = nil
 load = nil
 dofile = nil
 loadfile = nil
+debug = nil
+package = nil
 `;
 
 export interface UnitSensors {
