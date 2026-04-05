@@ -5,6 +5,6 @@ export default defineConfig({
         open: true,
     },
     test: {
-        environment: "node",
+        environment: "jsdom",
     },
 });
