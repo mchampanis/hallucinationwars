@@ -21,6 +21,7 @@ export class InputManager {
     private commandMode: CommandMode;
     private controlGroups: Map<number, number[]>;
     private lastGroupTap: { group: number; time: number };
+    private hasMouse: boolean;
 
     constructor(
         private domElement: HTMLElement,
@@ -41,6 +42,7 @@ export class InputManager {
         this.commandMode = "none";
         this.controlGroups = new Map();
         this.lastGroupTap = { group: -1, time: 0 };
+        this.hasMouse = false;
 
         this.dragBox = document.createElement("div");
         this.dragBox.style.cssText =
@@ -62,6 +64,7 @@ export class InputManager {
         });
 
         window.addEventListener("mousemove", (e) => {
+            this.hasMouse = true;
             this.mouse.set(
                 (e.clientX / window.innerWidth) * 2 - 1,
                 -(e.clientY / window.innerHeight) * 2 + 1
@@ -143,6 +146,34 @@ export class InputManager {
         this.domElement.addEventListener("contextmenu", (e) => {
             e.preventDefault();
         });
+
+        // Touch input: tap = select or move, drag handled by camera
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchTotalDist = 0;
+
+        this.domElement.addEventListener("touchstart", (e) => {
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+                touchTotalDist = 0;
+            }
+        }, { passive: true });
+
+        this.domElement.addEventListener("touchmove", (e) => {
+            if (e.touches.length === 1) {
+                const dx = e.touches[0].clientX - touchStartX;
+                const dy = e.touches[0].clientY - touchStartY;
+                touchTotalDist = Math.sqrt(dx * dx + dy * dy);
+            }
+        }, { passive: true });
+
+        this.domElement.addEventListener("touchend", (e) => {
+            if (e.changedTouches.length === 1 && touchTotalDist < DRAG_THRESHOLD) {
+                const touch = e.changedTouches[0];
+                this.handleTouchTap(touch.clientX, touch.clientY);
+            }
+        }, { passive: true });
     }
 
     private updateDragBox(): void {
@@ -258,6 +289,65 @@ export class InputManager {
         this.domElement.style.cursor = "default";
     }
 
+    private handleTouchTap(clientX: number, clientY: number): void {
+        const ndc = new THREE.Vector2(
+            (clientX / window.innerWidth) * 2 - 1,
+            -(clientY / window.innerHeight) * 2 + 1
+        );
+        this.raycaster.setFromCamera(ndc, this.camera);
+
+        // In attack-move mode, tap issues the command on terrain
+        if (this.commandMode === "attack-move") {
+            const terrainMesh = this.findTerrainMesh();
+            if (terrainMesh) {
+                const hits = this.raycaster.intersectObject(terrainMesh);
+                if (hits.length > 0 && this.terrain.isPassable(hits[0].point.x, hits[0].point.z)) {
+                    this.units.moveSelectedTo(hits[0].point);
+                }
+            }
+            this.cancelCommandMode();
+            return;
+        }
+
+        // Try to hit a unit first
+        const unit = this.units.raycastUnit(this.raycaster);
+        if (unit) {
+            this.units.selectOnly(unit);
+            return;
+        }
+
+        // Hit terrain: move if units selected, else deselect
+        const selected = this.units.getSelected();
+        const terrainMesh = this.findTerrainMesh();
+        if (terrainMesh) {
+            const hits = this.raycaster.intersectObject(terrainMesh);
+            if (hits.length > 0) {
+                const point = hits[0].point;
+                if (selected.length > 0 && this.terrain.isPassable(point.x, point.z)) {
+                    this.units.moveSelectedTo(point);
+                    return;
+                }
+            }
+        }
+        this.units.deselectAll();
+    }
+
+    // Public methods for mobile UI buttons
+    stopSelectedUnits(): void {
+        this.units.stopSelected();
+    }
+
+    enterAttackMoveMode(): void {
+        if (this.units.getSelected().length > 0) {
+            this.commandMode = "attack-move";
+            this.domElement.style.cursor = "crosshair";
+        }
+    }
+
+    cancelMode(): void {
+        this.cancelCommandMode();
+    }
+
     // Control groups
 
     private assignControlGroup(group: number): void {
@@ -301,7 +391,9 @@ export class InputManager {
     }
 
     update(): void {
-        // Hover detection
+        // Hover detection (skip on touch-only devices — no cursor to hover with)
+        if (!this.hasMouse) return;
+
         this.raycaster.setFromCamera(this.mouse, this.camera);
         const hovered = this.units.raycastUnit(this.raycaster);
 

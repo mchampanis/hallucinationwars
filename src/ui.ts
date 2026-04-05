@@ -1,61 +1,146 @@
 import { UnitManager, Unit } from "./units";
 import { InputManager } from "./input";
 
+const MOBILE_BREAKPOINT = 768;
+
+function isMobile(): boolean {
+    return window.innerWidth <= MOBILE_BREAKPOINT || navigator.maxTouchPoints > 0;
+}
+
 export class UIOverlay {
-    private selectionPanel: HTMLDivElement;
-    private resourceBar: HTMLDivElement;
-    private minimap: HTMLCanvasElement;
-    private minimapCtx: CanvasRenderingContext2D;
+    private selectionPanel!: HTMLDivElement;
+    private resourceBar!: HTMLDivElement;
+    private minimap!: HTMLCanvasElement;
+    private minimapCtx!: CanvasRenderingContext2D;
     private units: UnitManager;
+    private input: InputManager;
     private lastSelectedIds: string;
+    private mobile: boolean;
 
     constructor(
         container: HTMLElement,
         units: UnitManager,
-        _input: InputManager
+        input: InputManager
     ) {
         this.units = units;
+        this.input = input;
         this.lastSelectedIds = "";
+        this.mobile = isMobile();
 
-        // Resource bar (placeholder)
+        this.buildResourceBar(container);
+        this.buildSelectionPanel(container);
+        this.buildMinimap(container);
+
+        if (this.mobile) {
+            this.buildMobileControls(container);
+        } else {
+            this.buildKeyboardHints(container);
+        }
+    }
+
+    private buildResourceBar(container: HTMLElement): void {
         this.resourceBar = document.createElement("div");
-        this.resourceBar.style.cssText =
-            "position:absolute;top:0;left:0;right:0;height:32px;" +
-            "background:rgba(0,0,0,0.7);display:flex;align-items:center;" +
-            "padding:0 16px;font-family:monospace;font-size:13px;color:#ccc;" +
-            "gap:24px;z-index:10;";
-        this.resourceBar.innerHTML =
-            '<span style="color:#f4d03f">&#9670; Tokens: 1000</span>' +
-            '<span style="color:#aed581">&#9670; Wood: 0</span>' +
-            '<span style="color:#90a4ae">&#9670; Stone: 0</span>' +
-            '<span style="color:#e57373">&#9670; Iron: 0</span>' +
-            '<span style="color:#ce93d8">&#9670; Sulphur: 0</span>' +
-            '<span style="flex:1"></span>' +
-            '<span style="color:#888">Hallucination Wars v0.1</span>';
+        if (this.mobile) {
+            this.resourceBar.style.cssText =
+                "position:absolute;top:0;left:0;right:0;height:28px;" +
+                "background:rgba(0,0,0,0.85);display:flex;align-items:center;" +
+                "padding:0 8px;font-family:monospace;font-size:11px;color:#ccc;" +
+                "gap:10px;z-index:10;overflow:hidden;white-space:nowrap;";
+            this.resourceBar.innerHTML =
+                '<span style="color:#f4d03f" title="Tokens">&#9670; 1000</span>' +
+                '<span style="color:#aed581" title="Wood">&#9670; 0</span>' +
+                '<span style="color:#90a4ae" title="Stone">&#9670; 0</span>' +
+                '<span style="color:#e57373" title="Iron">&#9670; 0</span>' +
+                '<span style="color:#ce93d8" title="Sulphur">&#9670; 0</span>' +
+                '<span style="flex:1"></span>' +
+                '<span style="color:#666;font-size:10px;">HW v0.1</span>';
+        } else {
+            this.resourceBar.style.cssText =
+                "position:absolute;top:0;left:0;right:0;height:32px;" +
+                "background:rgba(0,0,0,0.7);display:flex;align-items:center;" +
+                "padding:0 16px;font-family:monospace;font-size:13px;color:#ccc;" +
+                "gap:24px;z-index:10;";
+            this.resourceBar.innerHTML =
+                '<span style="color:#f4d03f">&#9670; Tokens: 1000</span>' +
+                '<span style="color:#aed581">&#9670; Wood: 0</span>' +
+                '<span style="color:#90a4ae">&#9670; Stone: 0</span>' +
+                '<span style="color:#e57373">&#9670; Iron: 0</span>' +
+                '<span style="color:#ce93d8">&#9670; Sulphur: 0</span>' +
+                '<span style="flex:1"></span>' +
+                '<span style="color:#888">Hallucination Wars v0.1</span>';
+        }
         container.appendChild(this.resourceBar);
+    }
 
-        // Selection panel
+    private buildSelectionPanel(container: HTMLElement): void {
         this.selectionPanel = document.createElement("div");
+        // On mobile, sit above the action button row (which is ~52px tall + 8px bottom gap)
+        const bottom = this.mobile ? "68px" : "8px";
         this.selectionPanel.style.cssText =
-            "position:absolute;bottom:8px;left:50%;transform:translateX(-50%);" +
-            "min-width:280px;max-width:500px;background:rgba(0,0,0,0.8);" +
+            `position:absolute;bottom:${bottom};left:50%;transform:translateX(-50%);` +
+            "min-width:240px;max-width:480px;background:rgba(0,0,0,0.85);" +
             "border:1px solid #444;border-radius:4px;padding:10px 14px;" +
-            "font-family:monospace;font-size:12px;color:#ddd;z-index:10;" +
-            "display:none;";
+            `font-family:monospace;font-size:${this.mobile ? "13px" : "12px"};color:#ddd;` +
+            "z-index:10;display:none;";
         container.appendChild(this.selectionPanel);
+    }
 
-        // Minimap
+    private buildMinimap(container: HTMLElement): void {
+        const size = this.mobile ? 110 : 160;
         this.minimap = document.createElement("canvas");
-        this.minimap.width = 160;
-        this.minimap.height = 160;
+        this.minimap.width = size;
+        this.minimap.height = size;
         this.minimap.style.cssText =
-            "position:absolute;bottom:8px;right:8px;width:160px;height:160px;" +
-            "border:1px solid #555;background:#1a1a2e;z-index:10;" +
-            "border-radius:2px;";
+            `position:absolute;bottom:8px;right:8px;width:${size}px;height:${size}px;` +
+            "border:1px solid #555;background:#1a1a2e;z-index:10;border-radius:2px;";
         container.appendChild(this.minimap);
         this.minimapCtx = this.minimap.getContext("2d")!;
+    }
 
-        // Controls hint
+    private buildMobileControls(container: HTMLElement): void {
+        const bar = document.createElement("div");
+        bar.style.cssText =
+            "position:absolute;bottom:8px;left:8px;" +
+            "display:flex;flex-direction:row;gap:8px;z-index:20;align-items:flex-end;";
+
+        const makeBtn = (label: string, borderColor: string): HTMLButtonElement => {
+            const btn = document.createElement("button");
+            btn.style.cssText =
+                `background:rgba(0,0,0,0.85);border:1px solid ${borderColor};` +
+                `color:${borderColor};font-family:monospace;font-size:12px;font-weight:bold;` +
+                "padding:0 14px;height:44px;border-radius:4px;cursor:pointer;" +
+                "touch-action:none;user-select:none;-webkit-user-select:none;";
+            btn.textContent = label;
+            return btn;
+        };
+
+        const stopBtn = makeBtn("■ STOP", "#e57373");
+        stopBtn.addEventListener("pointerdown", (e) => {
+            e.stopPropagation();
+            this.input.stopSelectedUnits();
+        });
+
+        const atkBtn = makeBtn("⊕ ATTACK", "#f4d03f");
+        atkBtn.addEventListener("pointerdown", (e) => {
+            e.stopPropagation();
+            this.input.enterAttackMoveMode();
+        });
+
+        bar.appendChild(stopBtn);
+        bar.appendChild(atkBtn);
+        container.appendChild(bar);
+
+        // Touch hints (small, below buttons area - actually left of minimap)
+        const hint = document.createElement("div");
+        hint.style.cssText =
+            "position:absolute;bottom:8px;left:50%;transform:translateX(-50%);" +
+            "font-family:monospace;font-size:10px;color:#555;z-index:10;" +
+            "white-space:nowrap;pointer-events:none;";
+        hint.textContent = "Tap: select/move  •  Drag: pan  •  Pinch: zoom";
+        container.appendChild(hint);
+    }
+
+    private buildKeyboardHints(container: HTMLElement): void {
         const hints = document.createElement("div");
         hints.style.cssText =
             "position:absolute;bottom:8px;left:8px;font-family:monospace;" +

@@ -85,6 +85,95 @@ export class CameraController {
             if (e.button === 1) e.preventDefault();
         });
 
+        // Touch controls: single-finger pan, two-finger pinch-zoom + pan
+        let prevTouches: { x: number; y: number }[] = [];
+        let lastPinchDist = 0;
+        let singleTouchStartX = 0;
+        let singleTouchStartY = 0;
+        let singleTouchPanActive = false;
+
+        this.domElement.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            prevTouches = Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
+            if (e.touches.length === 1) {
+                singleTouchStartX = e.touches[0].clientX;
+                singleTouchStartY = e.touches[0].clientY;
+                singleTouchPanActive = false;
+            } else if (e.touches.length === 2) {
+                singleTouchPanActive = false;
+                const dx = e.touches[1].clientX - e.touches[0].clientX;
+                const dy = e.touches[1].clientY - e.touches[0].clientY;
+                lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+            }
+        }, { passive: false });
+
+        this.domElement.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+            const touches = Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
+
+            if (touches.length === 1 && prevTouches.length === 1) {
+                const totalDx = touches[0].x - singleTouchStartX;
+                const totalDy = touches[0].y - singleTouchStartY;
+                if (!singleTouchPanActive && Math.sqrt(totalDx * totalDx + totalDy * totalDy) > DRAG_DEAD_ZONE) {
+                    singleTouchPanActive = true;
+                }
+                if (singleTouchPanActive) {
+                    const dx = touches[0].x - prevTouches[0].x;
+                    const dy = touches[0].y - prevTouches[0].y;
+                    const panScale = this.spherical.radius * DRAG_PAN_SCALE;
+                    const forward = new THREE.Vector3(
+                        -Math.sin(this.spherical.theta), 0, -Math.cos(this.spherical.theta)
+                    );
+                    const right = new THREE.Vector3(
+                        Math.cos(this.spherical.theta), 0, -Math.sin(this.spherical.theta)
+                    );
+                    this.target.addScaledVector(right, -dx * panScale);
+                    this.target.addScaledVector(forward, dy * panScale);
+                }
+            } else if (touches.length === 2 && prevTouches.length >= 2) {
+                // Pinch-to-zoom
+                const dx = touches[1].x - touches[0].x;
+                const dy = touches[1].y - touches[0].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const zoomDelta = (lastPinchDist - dist) * 0.05;
+                this.spherical.radius = THREE.MathUtils.clamp(
+                    this.spherical.radius + zoomDelta,
+                    MIN_DISTANCE,
+                    MAX_DISTANCE
+                );
+                lastPinchDist = dist;
+
+                // Two-finger pan using midpoint delta
+                const midX = (touches[0].x + touches[1].x) / 2;
+                const prevMidX = (prevTouches[0].x + prevTouches[1].x) / 2;
+                const midY = (touches[0].y + touches[1].y) / 2;
+                const prevMidY = (prevTouches[0].y + prevTouches[1].y) / 2;
+                const panScale = this.spherical.radius * DRAG_PAN_SCALE;
+                const forward = new THREE.Vector3(
+                    -Math.sin(this.spherical.theta), 0, -Math.cos(this.spherical.theta)
+                );
+                const right = new THREE.Vector3(
+                    Math.cos(this.spherical.theta), 0, -Math.sin(this.spherical.theta)
+                );
+                this.target.addScaledVector(right, -(midX - prevMidX) * panScale);
+                this.target.addScaledVector(forward, (midY - prevMidY) * panScale);
+            }
+
+            prevTouches = touches;
+        }, { passive: false });
+
+        this.domElement.addEventListener("touchend", (e) => {
+            prevTouches = Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }));
+            if (e.touches.length === 0) {
+                singleTouchPanActive = false;
+            } else if (e.touches.length === 1) {
+                // Transition from 2-finger back to 1-finger
+                singleTouchStartX = e.touches[0].clientX;
+                singleTouchStartY = e.touches[0].clientY;
+                singleTouchPanActive = false;
+            }
+        }, { passive: false });
+
         document.addEventListener("visibilitychange", () => {
             if (document.hidden) {
                 this.windowFocused = false;
