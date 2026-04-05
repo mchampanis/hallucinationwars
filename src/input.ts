@@ -2,10 +2,12 @@ import * as THREE from "three";
 import { UnitManager, Unit } from "./units";
 import { TerrainQuery } from "./terrain";
 import { CameraController } from "./camera";
+import type { UIOverlay } from "./ui";
 
 type CommandMode = "none" | "attack-move";
 
 const DRAG_THRESHOLD = 5; // Pixels before a click becomes a drag
+const TOUCH_TAP_THRESHOLD = 18; // Larger threshold for finger imprecision
 const DOUBLE_TAP_MS = 300; // Max time between taps for double-tap
 
 export class InputManager {
@@ -22,6 +24,7 @@ export class InputManager {
     private controlGroups: Map<number, number[]>;
     private lastGroupTap: { group: number; time: number };
     private hasMouse: boolean;
+    private ui: UIOverlay | null = null;
 
     constructor(
         private domElement: HTMLElement,
@@ -147,21 +150,27 @@ export class InputManager {
             e.preventDefault();
         });
 
-        // Touch input: tap = select or move, drag handled by camera
+        // Touch input: single tap = select or move; drag and multi-touch handled by camera
         let touchStartX = 0;
         let touchStartY = 0;
         let touchTotalDist = 0;
+        let touchWasMulti = false; // disqualify if a second finger joined
 
         this.domElement.addEventListener("touchstart", (e) => {
             if (e.touches.length === 1) {
                 touchStartX = e.touches[0].clientX;
                 touchStartY = e.touches[0].clientY;
                 touchTotalDist = 0;
+                touchWasMulti = false;
+            } else {
+                touchWasMulti = true; // second finger added — not a tap
             }
         }, { passive: true });
 
         this.domElement.addEventListener("touchmove", (e) => {
-            if (e.touches.length === 1) {
+            if (e.touches.length > 1) {
+                touchWasMulti = true;
+            } else if (e.touches.length === 1) {
                 const dx = e.touches[0].clientX - touchStartX;
                 const dy = e.touches[0].clientY - touchStartY;
                 touchTotalDist = Math.sqrt(dx * dx + dy * dy);
@@ -169,7 +178,7 @@ export class InputManager {
         }, { passive: true });
 
         this.domElement.addEventListener("touchend", (e) => {
-            if (e.changedTouches.length === 1 && touchTotalDist < DRAG_THRESHOLD) {
+            if (!touchWasMulti && e.changedTouches.length === 1 && touchTotalDist < TOUCH_TAP_THRESHOLD) {
                 const touch = e.changedTouches[0];
                 this.handleTouchTap(touch.clientX, touch.clientY);
             }
@@ -284,9 +293,14 @@ export class InputManager {
         ) as THREE.Mesh | undefined;
     }
 
+    setUI(ui: UIOverlay): void {
+        this.ui = ui;
+    }
+
     private cancelCommandMode(): void {
         this.commandMode = "none";
         this.domElement.style.cursor = "default";
+        this.ui?.clearAttackModeIndicator();
     }
 
     private handleTouchTap(clientX: number, clientY: number): void {

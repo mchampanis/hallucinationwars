@@ -4,7 +4,8 @@ import { InputManager } from "./input";
 const MOBILE_BREAKPOINT = 768;
 
 function isMobile(): boolean {
-    return window.innerWidth <= MOBILE_BREAKPOINT || navigator.maxTouchPoints > 0;
+    return window.innerWidth <= MOBILE_BREAKPOINT &&
+        ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 }
 
 export class UIOverlay {
@@ -12,6 +13,7 @@ export class UIOverlay {
     private resourceBar!: HTMLDivElement;
     private minimap!: HTMLCanvasElement;
     private minimapCtx!: CanvasRenderingContext2D;
+    private attackModeIndicator: HTMLDivElement | null = null;
     private units: UnitManager;
     private input: InputManager;
     private lastSelectedIds: string;
@@ -124,11 +126,26 @@ export class UIOverlay {
         atkBtn.addEventListener("pointerdown", (e) => {
             e.stopPropagation();
             this.input.enterAttackMoveMode();
+            if (this.attackModeIndicator) {
+                this.attackModeIndicator.style.display = "block";
+            }
         });
 
         bar.appendChild(stopBtn);
         bar.appendChild(atkBtn);
         container.appendChild(bar);
+
+        // Attack-move mode indicator banner shown below resource bar
+        const indicator = document.createElement("div");
+        indicator.style.cssText =
+            "position:absolute;top:36px;left:50%;transform:translateX(-50%);" +
+            "background:rgba(244,208,63,0.15);border:1px solid #f4d03f;color:#f4d03f;" +
+            "font-family:monospace;font-size:12px;font-weight:bold;" +
+            "padding:4px 16px;border-radius:4px;z-index:20;display:none;" +
+            "pointer-events:none;white-space:nowrap;";
+        indicator.textContent = "⊕ ATTACK MODE — tap target";
+        container.appendChild(indicator);
+        this.attackModeIndicator = indicator;
 
         // Touch hints (small, below buttons area - actually left of minimap)
         const hint = document.createElement("div");
@@ -150,6 +167,12 @@ export class UIOverlay {
             "LMB: Select | Shift+LMB: Add | Ctrl+LMB: Same team | LMB Drag: Box select | RMB: Move<br>" +
             "A+LMB: Attack-move | S: Stop | H: Hold | Ctrl+0-9: Set group | 0-9: Select group | Esc: Cancel";
         container.appendChild(hints);
+    }
+
+    clearAttackModeIndicator(): void {
+        if (this.attackModeIndicator) {
+            this.attackModeIndicator.style.display = "none";
+        }
     }
 
     update(): void {

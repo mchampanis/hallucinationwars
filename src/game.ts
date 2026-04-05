@@ -53,6 +53,7 @@ export class Game {
             this.cameraController
         );
         this.ui = new UIOverlay(container, this.units, this.input);
+        this.input.setUI(this.ui);
         this.clock = new THREE.Timer();
 
         window.addEventListener("resize", () => this.onResize());
