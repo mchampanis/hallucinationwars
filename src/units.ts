@@ -2,8 +2,11 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as skeletonClone } from "three/addons/utils/SkeletonUtils.js";
 import { TerrainQuery } from "./terrain";
+import { LuaBehaviorEngine, DEFAULT_SCRIPT, UnitLuaEnv } from "./lua-behavior";
 
-const UNIT_SPEED = 8;
+const MAX_SPEED = 8;
+const MAX_TURN_RATE = 2.5;
+const ERROR_LOG_MAX = 20;
 const UNIT_RADIUS = 0.5;
 const TANK_SCALE = 0.2;
 // Half-dimensions of the tank footprint used for terrain slope sampling
@@ -23,12 +26,15 @@ export interface Unit {
     selectionRing: THREE.Mesh;
     position: THREE.Vector3;
     yaw: number;
-    target: THREE.Vector3 | null;
+    moveCommand: { x: number; z: number } | null;
     health: number;
     maxHealth: number;
     selected: boolean;
     hovered: boolean;
     name: string;
+    luaScript: string;
+    luaEnv: UnitLuaEnv | null;
+    errorLog: string[];
 }
 
 let nextId = 0;
@@ -38,10 +44,12 @@ export class UnitManager {
     private scene: THREE.Scene;
     private terrain: TerrainQuery;
     private tankTemplate: THREE.Group | null = null;
+    private luaBehavior: LuaBehaviorEngine;
 
-    constructor(scene: THREE.Scene, terrain: TerrainQuery) {
+    constructor(scene: THREE.Scene, terrain: TerrainQuery, luaBehavior: LuaBehaviorEngine) {
         this.scene = scene;
         this.terrain = terrain;
+        this.luaBehavior = luaBehavior;
     }
 
     async preload(): Promise<void> {
@@ -185,16 +193,40 @@ export class UnitManager {
             selectionRing: ring,
             position: group.position,
             yaw: 0,
-            target: null,
+            moveCommand: null,
             health: 100,
             maxHealth: 100,
             selected: false,
             hovered: false,
             name,
+            luaScript: DEFAULT_SCRIPT,
+            luaEnv: null,
+            errorLog: [],
         };
 
         this.units.push(unit);
+        this.initUnitLua(unit); // async fire-and-forget
         return unit;
+    }
+
+    private async initUnitLua(unit: Unit): Promise<void> {
+        const result = await this.luaBehavior.compile(unit.luaScript);
+        if (result instanceof Error) {
+            unit.errorLog.push(result.message);
+            if (unit.errorLog.length > ERROR_LOG_MAX) unit.errorLog.shift();
+        } else {
+            unit.luaEnv = result;
+        }
+    }
+
+    async setUnitScript(unit: Unit, script: string): Promise<Error | null> {
+        const result = await this.luaBehavior.compile(script);
+        if (result instanceof Error) return result;
+        if (unit.luaEnv) this.luaBehavior.destroyEnv(unit.luaEnv);
+        unit.luaEnv = result;
+        unit.luaScript = script;
+        unit.errorLog = [];
+        return null;
     }
 
     private findPassableNear(x: number, z: number): { x: number; z: number } {
@@ -214,31 +246,37 @@ export class UnitManager {
         return { x, z };
     }
 
-    update(delta: number): void {
+    async update(delta: number): Promise<void> {
         for (const unit of this.units) {
-            this.updateUnit(unit, delta);
+            await this.updateUnit(unit, delta);
         }
     }
 
-    private updateUnit(unit: Unit, delta: number): void {
-        // Move toward target
-        if (unit.target) {
-            const dx = unit.target.x - unit.position.x;
-            const dz = unit.target.z - unit.position.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
+    private async updateUnit(unit: Unit, delta: number): Promise<void> {
+        // Run Lua behavior
+        if (unit.luaEnv) {
+            const out = await this.luaBehavior.tick(
+                unit.luaEnv,
+                {
+                    x: unit.position.x,
+                    z: unit.position.z,
+                    yaw: unit.yaw,
+                    moveCommand: unit.moveCommand,
+                },
+                delta,
+            );
+            if (out.error) {
+                unit.errorLog.push(out.error);
+                if (unit.errorLog.length > ERROR_LOG_MAX) unit.errorLog.shift();
+            }
 
-            if (dist < 0.5) {
-                unit.target = null;
-            } else {
-                const step = UNIT_SPEED * delta;
-                const nx = unit.position.x + (dx / dist) * step;
-                const nz = unit.position.z + (dz / dist) * step;
-
-                if (this.terrain.isPassable(nx, nz)) {
-                    unit.position.x = nx;
-                    unit.position.z = nz;
-                    unit.yaw = Math.atan2(dx, dz);
-                }
+            // Apply actuators
+            unit.yaw += out.steer * MAX_TURN_RATE * delta;
+            const newX = unit.position.x + Math.sin(unit.yaw) * out.thrust * MAX_SPEED * delta;
+            const newZ = unit.position.z + Math.cos(unit.yaw) * out.thrust * MAX_SPEED * delta;
+            if (this.terrain.isPassable(newX, newZ)) {
+                unit.position.x = newX;
+                unit.position.z = newZ;
             }
         }
 
@@ -254,18 +292,14 @@ export class UnitManager {
             (unit.selectionRing.material as THREE.MeshBasicMaterial).color.setHex(0x00ff00);
         }
 
-        // Health bar faces camera (billboard)
         const healthPct = unit.health / unit.maxHealth;
         unit.healthBar.scale.x = healthPct;
         unit.healthBar.position.x = -(1 - healthPct) * 0.6;
-
-        // Color health bar based on health
         const hbColor = (unit.healthBar.material as THREE.MeshBasicMaterial).color;
         if (healthPct > 0.6) hbColor.setHex(0x00cc00);
         else if (healthPct > 0.3) hbColor.setHex(0xcccc00);
         else hbColor.setHex(0xcc0000);
 
-        // Model glow on hover
         if (unit.modelRoot) {
             unit.modelRoot.traverse((child) => {
                 if (child instanceof THREE.Mesh || child instanceof THREE.SkinnedMesh) {
@@ -360,7 +394,7 @@ export class UnitManager {
     stopSelected(): void {
         for (const u of this.units) {
             if (u.selected) {
-                u.target = null;
+                u.moveCommand = null;
             }
         }
     }
@@ -392,7 +426,7 @@ export class UnitManager {
         if (selected.length === 0) return;
 
         if (selected.length === 1) {
-            selected[0].target = point.clone();
+            selected[0].moveCommand = { x: point.x, z: point.z };
             return;
         }
 
@@ -409,9 +443,9 @@ export class UnitManager {
             );
             const target = point.clone().add(offset);
             if (this.terrain.isPassable(target.x, target.z)) {
-                selected[i].target = target;
+                selected[i].moveCommand = { x: target.x, z: target.z };
             } else {
-                selected[i].target = point.clone();
+                selected[i].moveCommand = { x: point.x, z: point.z };
             }
         }
     }
