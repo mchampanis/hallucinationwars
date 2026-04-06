@@ -289,6 +289,10 @@ export class UnitManager {
                     z: unit.position.z,
                     yaw: unit.yaw,
                     moveCommand: unit.moveCommand,
+                    turretYaw: unit.turretYaw,
+                    turretPitch: unit.turretPitch,
+                    fireCooldown: unit.fireCooldown,
+                    nearestEnemy: null,
                 },
                 delta,
             );
