@@ -28,7 +28,10 @@ function tick(self, dt)
     local dx = self.nearest_enemy_x - self.x
     local dz = self.nearest_enemy_z - self.z
     local world_bearing = math.atan(dx, dz)
-    self.turret_yaw   = world_bearing - self.yaw
+    local raw_yaw = world_bearing - self.yaw
+    while raw_yaw >  math.pi do raw_yaw = raw_yaw - 2 * math.pi end
+    while raw_yaw < -math.pi do raw_yaw = raw_yaw + 2 * math.pi end
+    self.turret_yaw   = raw_yaw
     self.turret_pitch = 0.3
     if self.cooldown <= 0 then
       self.fire = true
