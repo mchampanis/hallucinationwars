@@ -13,6 +13,9 @@ const MAX_DISTANCE = 150;
 const MIN_POLAR = 0.3;   // Don't go fully horizontal
 const MAX_POLAR = 1.4;   // Don't go fully top-down
 
+const SHAKE_DECAY = 6;        // magnitude lost per second
+const SHAKE_FALLOFF_SQ = 40 * 40; // squared distance at which intensity halves
+
 export class CameraController {
     private target: THREE.Vector3;
     private spherical: THREE.Spherical;
@@ -24,6 +27,7 @@ export class CameraController {
     private hasMouse: boolean;
     private terrain: TerrainQuery;
     private mapHalfSize: number;
+    private shakeMagnitude = 0;
 
     constructor(
         private camera: THREE.PerspectiveCamera,
@@ -273,6 +277,25 @@ export class CameraController {
         this.target.y = terrainH;
 
         this.updateCameraPosition();
+
+        // Decay and apply camera shake on top of the computed position
+        if (this.shakeMagnitude > 0.001) {
+            this.camera.position.x += (Math.random() - 0.5) * 2 * this.shakeMagnitude;
+            this.camera.position.y += (Math.random() - 0.5) * 0.5 * this.shakeMagnitude;
+            this.camera.position.z += (Math.random() - 0.5) * 2 * this.shakeMagnitude;
+            this.shakeMagnitude = Math.max(0, this.shakeMagnitude - SHAKE_DECAY * delta);
+        }
+    }
+
+    // worldPosition: the event (shot/explosion) location in world space
+    // baseIntensity: max shake magnitude at distance zero (~0.4 for shots, ~1.5 for explosions)
+    applyShake(worldPosition: THREE.Vector3, baseIntensity: number): void {
+        const dx = worldPosition.x - this.target.x;
+        const dz = worldPosition.z - this.target.z;
+        const distSq = dx * dx + dz * dz;
+        // Squared falloff: full intensity at centre, halves at SHAKE_FALLOFF_SQ distance
+        const intensity = baseIntensity / (1 + distSq / SHAKE_FALLOFF_SQ);
+        this.shakeMagnitude = Math.max(this.shakeMagnitude, intensity);
     }
 
     private updateCameraPosition(): void {

@@ -1,5 +1,8 @@
 import * as THREE from "three";
 import type { TerrainQuery } from "./terrain";
+import type { ParticleManager } from "./particles";
+import type { GroundEffectsManager } from "./ground-effects";
+import type { CameraController } from "./camera";
 
 export const GRAVITY = 12;           // m/s² (slightly faster than real for snappier feel)
 export const MUZZLE_VELOCITY = 40;   // m/s
@@ -66,18 +69,18 @@ interface LiveProjectile {
     mesh: THREE.Mesh;
 }
 
-interface Explosion {
-    mesh: THREE.Mesh;
-    age: number;
-}
-
 export class ProjectileManager {
     private projectiles: LiveProjectile[] = [];
-    private explosions: Explosion[] = [];
     private scene: THREE.Scene;
+    private particles: ParticleManager;
+    private groundEffects: GroundEffectsManager;
+    private camera: CameraController;
 
-    constructor(scene: THREE.Scene) {
+    constructor(scene: THREE.Scene, particles: ParticleManager, groundEffects: GroundEffectsManager, camera: CameraController) {
         this.scene = scene;
+        this.particles = particles;
+        this.groundEffects = groundEffects;
+        this.camera = camera;
     }
 
     fire(origin: THREE.Vector3, worldYaw: number, worldPitch: number, ownerTeam: string): void {
@@ -94,6 +97,9 @@ export class ProjectileManager {
             age: 0,
             mesh,
         });
+        this.particles.spawnMuzzleFlash(origin, worldYaw, worldPitch);
+        this.particles.spawnBarrelSmoke(origin);
+        this.camera.applyShake(origin, 0.35);
     }
 
     update(delta: number, terrain: TerrainQuery, units: Damageable[]): void {
@@ -110,6 +116,11 @@ export class ProjectileManager {
             p.velocity.set(result.vel.vx, result.vel.vy, result.vel.vz);
             p.mesh.position.copy(p.position);
 
+            // Emit a trail puff roughly every 33 ms so adjacent puffs overlap into a solid trail
+            if (Math.floor((p.age - delta) / 0.033) < Math.floor(p.age / 0.033)) {
+                this.particles.spawnTrail(p.position);
+            }
+
             const groundY = terrain.getHeightAt(p.position.x, p.position.z);
             const hitGround = p.position.y <= groundY;
             const expired = p.age > MAX_PROJECTILE_AGE;
@@ -123,28 +134,14 @@ export class ProjectileManager {
                 }
             }
         }
-
-        for (let i = this.explosions.length - 1; i >= 0; i--) {
-            const exp = this.explosions[i];
-            exp.age += delta;
-            const t = exp.age / EXPLOSION_DURATION;
-            if (t >= 1) {
-                this.removeMesh(exp.mesh);
-                this.explosions.splice(i, 1);
-            } else {
-                exp.mesh.scale.setScalar(t * BLAST_RADIUS);
-                (exp.mesh.material as THREE.MeshBasicMaterial).opacity = 1 - t;
-            }
-        }
     }
 
     private explode(position: THREE.Vector3, ownerTeam: string, units: Damageable[]): void {
-        const geo = new THREE.SphereGeometry(1, 8, 8);
-        const mat = new THREE.MeshBasicMaterial({ color: 0xff6600, transparent: true, opacity: 1 });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.copy(position);
-        this.scene.add(mesh);
-        this.explosions.push({ mesh, age: 0 });
+        this.particles.spawnExplosion(position);
+        this.particles.spawnDebris(position);
+        this.particles.spawnLingeringSmoke(position);
+        this.groundEffects.addScorchMark(position);
+        this.camera.applyShake(position, 1.5);
 
         for (const unit of units) {
             if (unit.team === ownerTeam) continue;

@@ -3,10 +3,15 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as skeletonClone } from "three/addons/utils/SkeletonUtils.js";
 import { TerrainQuery } from "./terrain";
 import { LuaBehaviorEngine, DEFAULT_SCRIPT, UnitLuaEnv } from "./lua-behavior";
-import { ProjectileManager, FIRE_COOLDOWN } from "./projectiles";
+import { ProjectileManager, FIRE_COOLDOWN, MAX_TURRET_PITCH } from "./projectiles";
+import type { ParticleManager } from "./particles";
+import type { GroundEffectsManager } from "./ground-effects";
 
 const MAX_SPEED = 8;
 const MAX_TURN_RATE = 2.5;
+const MAX_TURRET_YAW_SPEED = 1.5;   // rad/s
+const MAX_TURRET_PITCH_SPEED = 1.0; // rad/s
+const MIN_TURRET_PITCH = 0.0;       // can't depress below horizontal
 const ERROR_LOG_MAX = 20;
 const UNIT_RADIUS = 0.5;
 const TANK_SCALE = 0.2;
@@ -38,6 +43,10 @@ export interface Unit {
     fireCooldown: number;
     turretMesh: THREE.Object3D | null;
     barrelMesh: THREE.Object3D | null;
+    turretRestQuat: THREE.Quaternion | null;
+    barrelRestQuat: THREE.Quaternion | null;
+    exhaustTimer: number;
+    lastTrackMarkPos: THREE.Vector3 | null;
     luaScript: string;
     luaEnv: UnitLuaEnv | null;
     errorLog: string[];
@@ -80,6 +89,7 @@ export class UnitManager {
         model.updateMatrixWorld(true);
         const box = new THREE.Box3().setFromObject(model);
         model.position.y = -box.min.y;
+        model.userData.baseY = model.position.y;
 
         const tint =
             team === "red"
@@ -133,7 +143,7 @@ export class UnitManager {
         modelRoot.traverse((child) => {
             const name = child.name.toLowerCase();
             if (!turretMesh && name.includes("turret")) turretMesh = child;
-            if (!barrelMesh && name.includes("barrel")) barrelMesh = child;
+            if (!barrelMesh && (name.includes("barrel") || name.includes("gun"))) barrelMesh = child;
         });
         return { turretMesh, barrelMesh };
     }
@@ -205,6 +215,14 @@ export class UnitManager {
 
         const findResult = this.findTurretNodes(modelRoot);
 
+        // Re-parent gun under turret so it inherits turret yaw rotation.
+        // updateMatrixWorld must be called first so attach() can compute the correct
+        // local transform for the barrel relative to its new parent.
+        if (findResult.turretMesh && findResult.barrelMesh) {
+            group.updateMatrixWorld(true);
+            findResult.turretMesh.attach(findResult.barrelMesh);
+        }
+
         const unit: Unit = {
             id: nextId++,
             team,
@@ -227,6 +245,10 @@ export class UnitManager {
             fireCooldown: 0,
             turretMesh: findResult.turretMesh,
             barrelMesh: findResult.barrelMesh,
+            turretRestQuat: findResult.turretMesh ? findResult.turretMesh.quaternion.clone() : null,
+            barrelRestQuat: findResult.barrelMesh ? findResult.barrelMesh.quaternion.clone() : null,
+            exhaustTimer: 0,
+            lastTrackMarkPos: null,
             luaScript: DEFAULT_SCRIPT,
             luaEnv: null,
             errorLog: [],
@@ -293,13 +315,13 @@ export class UnitManager {
         return { x: nearest.position.x, z: nearest.position.z, dist: nearestDist, health: nearest.health };
     }
 
-    async update(delta: number, projectileManager: ProjectileManager): Promise<void> {
+    async update(delta: number, projectileManager: ProjectileManager, particles: ParticleManager, groundEffects: GroundEffectsManager): Promise<void> {
         for (const unit of this.units) {
-            await this.updateUnit(unit, delta, projectileManager);
+            await this.updateUnit(unit, delta, projectileManager, particles, groundEffects);
         }
     }
 
-    private async updateUnit(unit: Unit, delta: number, projectileManager: ProjectileManager): Promise<void> {
+    private async updateUnit(unit: Unit, delta: number, projectileManager: ProjectileManager, particles: ParticleManager, groundEffects: GroundEffectsManager): Promise<void> {
         // Run Lua behavior
         if (unit.luaEnv) {
             const out = await this.luaBehavior.tick(
@@ -331,9 +353,13 @@ export class UnitManager {
                 unit.position.z = newZ;
             }
 
-            // Apply turret actuators
-            unit.turretYaw = out.turretYaw;
-            unit.turretPitch = out.turretPitch;
+            // Apply turret actuators — smoothly step current angles toward Lua targets
+            const yawDiff = ((out.turretYaw - unit.turretYaw + Math.PI) % (2 * Math.PI)) - Math.PI;
+            unit.turretYaw += Math.sign(yawDiff) * Math.min(Math.abs(yawDiff), MAX_TURRET_YAW_SPEED * delta);
+
+            const pitchDiff = out.turretPitch - unit.turretPitch;
+            unit.turretPitch += Math.sign(pitchDiff) * Math.min(Math.abs(pitchDiff), MAX_TURRET_PITCH_SPEED * delta);
+            unit.turretPitch = Math.max(MIN_TURRET_PITCH, Math.min(MAX_TURRET_PITCH, unit.turretPitch));
 
             // Fire if requested and cooldown allows
             if (out.fire && unit.fireCooldown <= 0) {
@@ -353,6 +379,29 @@ export class UnitManager {
         // Cooldown tick (always runs regardless of Lua state)
         if (unit.fireCooldown > 0) {
             unit.fireCooldown = Math.max(0, unit.fireCooldown - delta);
+        }
+
+        // Engine exhaust — dark puff from rear every 0.8 s
+        unit.exhaustTimer += delta;
+        if (unit.exhaustTimer >= 0.8) {
+            unit.exhaustTimer = 0;
+            const exhaustPos = unit.position.clone().add(new THREE.Vector3(
+                -Math.sin(unit.yaw) * 1.3,
+                0.6,
+                -Math.cos(unit.yaw) * 1.3,
+            ));
+            particles.spawnExhaust(exhaustPos);
+        }
+
+        // Tread marks — stamp every 0.8 m of movement
+        const pos = unit.position;
+        const lp = unit.lastTrackMarkPos;
+        const movedSq = lp
+            ? (pos.x - lp.x) ** 2 + (pos.z - lp.z) ** 2
+            : Infinity;
+        if (movedSq >= 0.8 * 0.8) {
+            groundEffects.addTreadMark(pos.clone(), unit.yaw);
+            unit.lastTrackMarkPos = pos.clone();
         }
 
         // Always snap to terrain height and conform rotation to slope
@@ -375,12 +424,30 @@ export class UnitManager {
         else if (healthPct > 0.3) hbColor.setHex(0xcccc00);
         else hbColor.setHex(0xcc0000);
 
-        // Turret / barrel visual rotation
-        if (unit.turretMesh) {
-            unit.turretMesh.rotation.y = unit.turretYaw;
+        // Engine vibration — tiny random jitter on the model so it feels alive
+        if (unit.modelRoot) {
+            const amp = 0.016;
+            const baseY = (unit.modelRoot.userData.baseY as number) ?? 0;
+            unit.modelRoot.position.x = (Math.random() - 0.5) * amp;
+            unit.modelRoot.position.y = baseY + Math.random() * amp * 0.4;
+            unit.modelRoot.position.z = (Math.random() - 0.5) * amp;
         }
-        if (unit.barrelMesh) {
-            unit.barrelMesh.rotation.x = -unit.turretPitch;
+
+        // Turret / barrel visual rotation using quaternion composition to handle the
+        // model's baked -90° X rest rotation correctly.
+        if (unit.turretMesh && unit.turretRestQuat) {
+            const yawQuat = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(0, 1, 0),
+                unit.turretYaw,
+            );
+            unit.turretMesh.quaternion.copy(yawQuat).multiply(unit.turretRestQuat);
+        }
+        if (unit.barrelMesh && unit.barrelRestQuat) {
+            const pitchQuat = new THREE.Quaternion().setFromAxisAngle(
+                new THREE.Vector3(1, 0, 0),
+                -unit.turretPitch,
+            );
+            unit.barrelMesh.quaternion.copy(pitchQuat).multiply(unit.barrelRestQuat);
         }
 
         if (unit.modelRoot) {

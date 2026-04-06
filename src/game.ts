@@ -6,6 +6,8 @@ import { InputManager } from "./input";
 import { UIOverlay } from "./ui";
 import { LuaBehaviorEngine } from "./lua-behavior";
 import { ProjectileManager } from "./projectiles";
+import { ParticleManager } from "./particles";
+import { GroundEffectsManager } from "./ground-effects";
 
 export class Game {
     private renderer: THREE.WebGLRenderer;
@@ -15,6 +17,8 @@ export class Game {
     private terrain: Terrain;
     private units: UnitManager;
     private projectiles: ProjectileManager;
+    private particles: ParticleManager;
+    private groundEffects: GroundEffectsManager;
     private input: InputManager;
     private ui: UIOverlay;
     private clock: THREE.Timer;
@@ -49,7 +53,9 @@ export class Game {
         );
         this.luaBehavior = new LuaBehaviorEngine();
         this.units = new UnitManager(this.scene, this.terrain, this.luaBehavior);
-        this.projectiles = new ProjectileManager(this.scene);
+        this.particles = new ParticleManager(this.scene);
+        this.groundEffects = new GroundEffectsManager(this.scene, this.terrain);
+        this.projectiles = new ProjectileManager(this.scene, this.particles, this.groundEffects, this.cameraController);
         this.input = new InputManager(
             this.renderer.domElement,
             this.camera,
@@ -97,8 +103,10 @@ export class Game {
         const delta = this.clock.getDelta();
 
         this.cameraController.update(delta);
-        await this.units.update(delta, this.projectiles);
+        await this.units.update(delta, this.projectiles, this.particles, this.groundEffects);
         this.projectiles.update(delta, this.terrain, this.units.getAllUnits());
+        this.particles.update(delta);
+        this.groundEffects.update(delta);
         this.input.update();
         this.ui.update();
         this.renderer.render(this.scene, this.camera);
