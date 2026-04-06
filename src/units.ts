@@ -3,6 +3,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { clone as skeletonClone } from "three/addons/utils/SkeletonUtils.js";
 import { TerrainQuery } from "./terrain";
 import { LuaBehaviorEngine, DEFAULT_SCRIPT, UnitLuaEnv } from "./lua-behavior";
+import { ProjectileManager, FIRE_COOLDOWN } from "./projectiles";
 
 const MAX_SPEED = 8;
 const MAX_TURN_RATE = 2.5;
@@ -273,13 +274,32 @@ export class UnitManager {
         return { x, z };
     }
 
-    async update(delta: number): Promise<void> {
+    private findNearestEnemy(
+        unit: Unit,
+    ): { x: number; z: number; dist: number; health: number } | null {
+        let nearest: Unit | null = null;
+        let nearestDist = Infinity;
+        for (const other of this.units) {
+            if (other.team === unit.team || other.health <= 0) continue;
+            const dx = other.position.x - unit.position.x;
+            const dz = other.position.z - unit.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+            if (dist < nearestDist) {
+                nearestDist = dist;
+                nearest = other;
+            }
+        }
+        if (!nearest) return null;
+        return { x: nearest.position.x, z: nearest.position.z, dist: nearestDist, health: nearest.health };
+    }
+
+    async update(delta: number, projectileManager: ProjectileManager): Promise<void> {
         for (const unit of this.units) {
-            await this.updateUnit(unit, delta);
+            await this.updateUnit(unit, delta, projectileManager);
         }
     }
 
-    private async updateUnit(unit: Unit, delta: number): Promise<void> {
+    private async updateUnit(unit: Unit, delta: number, projectileManager: ProjectileManager): Promise<void> {
         // Run Lua behavior
         if (unit.luaEnv) {
             const out = await this.luaBehavior.tick(
@@ -292,7 +312,7 @@ export class UnitManager {
                     turretYaw: unit.turretYaw,
                     turretPitch: unit.turretPitch,
                     fireCooldown: unit.fireCooldown,
-                    nearestEnemy: null,
+                    nearestEnemy: this.findNearestEnemy(unit),
                 },
                 delta,
             );
@@ -309,6 +329,28 @@ export class UnitManager {
             if (this.terrain.isPassable(newX, newZ)) {
                 unit.position.x = newX;
                 unit.position.z = newZ;
+            }
+
+            // Apply turret actuators
+            unit.turretYaw = out.turretYaw;
+            unit.turretPitch = out.turretPitch;
+
+            // Fire if requested and cooldown allows
+            if (out.fire && unit.fireCooldown <= 0) {
+                const worldYaw = unit.yaw + unit.turretYaw;
+                const muzzleOffset = new THREE.Vector3(
+                    Math.sin(worldYaw) * 1.5,
+                    1.5,
+                    Math.cos(worldYaw) * 1.5,
+                );
+                const origin = unit.position.clone().add(muzzleOffset);
+                projectileManager.fire(origin, worldYaw, unit.turretPitch, unit.team);
+                unit.fireCooldown = FIRE_COOLDOWN;
+            }
+
+            // Cooldown tick
+            if (unit.fireCooldown > 0) {
+                unit.fireCooldown = Math.max(0, unit.fireCooldown - delta);
             }
         }
 
@@ -331,6 +373,14 @@ export class UnitManager {
         if (healthPct > 0.6) hbColor.setHex(0x00cc00);
         else if (healthPct > 0.3) hbColor.setHex(0xcccc00);
         else hbColor.setHex(0xcc0000);
+
+        // Turret / barrel visual rotation
+        if (unit.turretMesh) {
+            unit.turretMesh.rotation.y = unit.turretYaw;
+        }
+        if (unit.barrelMesh) {
+            unit.barrelMesh.rotation.x = -unit.turretPitch;
+        }
 
         if (unit.modelRoot) {
             unit.modelRoot.traverse((child) => {
