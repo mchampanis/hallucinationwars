@@ -1,8 +1,6 @@
 import * as THREE from "three";
 import type { TerrainQuery } from "./terrain";
 
-// Pure physics functions — no Three.js. Tested directly.
-
 export const GRAVITY = 12;           // m/s² (slightly faster than real for snappier feel)
 export const MUZZLE_VELOCITY = 40;   // m/s
 export const BLAST_RADIUS = 8;       // metres
@@ -10,6 +8,9 @@ export const MAX_DAMAGE = 40;        // HP (2-3 shots to kill from 100 HP)
 export const FIRE_COOLDOWN = 5.0;    // seconds between shots
 export const MAX_PROJECTILE_AGE = 10; // seconds before silent cleanup
 export const MAX_TURRET_PITCH = 0.6; // radians (~35°)
+export const EXPLOSION_DURATION = 0.4; // seconds for explosion animation
+
+// --- Pure physics (no Three.js, tested directly) ---
 
 export function computeInitialVelocity(
     worldYaw: number,
@@ -110,11 +111,15 @@ export class ProjectileManager {
             p.mesh.position.copy(p.position);
 
             const groundY = terrain.getHeightAt(p.position.x, p.position.z);
-            if (p.position.y <= groundY || p.age > MAX_PROJECTILE_AGE) {
+            const hitGround = p.position.y <= groundY;
+            const expired = p.age > MAX_PROJECTILE_AGE;
+
+            if (hitGround || expired) {
                 this.removeMesh(p.mesh);
                 this.projectiles.splice(i, 1);
-                if (p.position.y <= groundY) {
-                    this.explode(p.position, p.ownerTeam, units);
+                if (hitGround) {
+                    const impactPoint = new THREE.Vector3(p.position.x, groundY, p.position.z);
+                    this.explode(impactPoint, p.ownerTeam, units);
                 }
             }
         }
@@ -122,7 +127,7 @@ export class ProjectileManager {
         for (let i = this.explosions.length - 1; i >= 0; i--) {
             const exp = this.explosions[i];
             exp.age += delta;
-            const t = exp.age / 0.4; // 0.4s animation
+            const t = exp.age / EXPLOSION_DURATION;
             if (t >= 1) {
                 this.removeMesh(exp.mesh);
                 this.explosions.splice(i, 1);
