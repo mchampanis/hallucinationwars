@@ -32,6 +32,11 @@ export interface Unit {
     selected: boolean;
     hovered: boolean;
     name: string;
+    turretYaw: number;
+    turretPitch: number;
+    fireCooldown: number;
+    turretMesh: THREE.Object3D | null;
+    barrelMesh: THREE.Object3D | null;
     luaScript: string;
     luaEnv: UnitLuaEnv | null;
     errorLog: string[];
@@ -117,6 +122,21 @@ export class UnitManager {
         }
     }
 
+    private findTurretNodes(modelRoot: THREE.Group | null): {
+        turretMesh: THREE.Object3D | null;
+        barrelMesh: THREE.Object3D | null;
+    } {
+        if (!modelRoot) return { turretMesh: null, barrelMesh: null };
+        let turretMesh: THREE.Object3D | null = null;
+        let barrelMesh: THREE.Object3D | null = null;
+        modelRoot.traverse((child) => {
+            const name = child.name.toLowerCase();
+            if (!turretMesh && name.includes("turret")) turretMesh = child;
+            if (!barrelMesh && name.includes("barrel")) barrelMesh = child;
+        });
+        return { turretMesh, barrelMesh };
+    }
+
     private spawnUnit(team: Team, x: number, z: number, name: string): Unit {
         const group = new THREE.Group();
 
@@ -182,6 +202,8 @@ export class UnitManager {
         group.position.set(spawnPos.x, h, spawnPos.z);
         this.scene.add(group);
 
+        const findResult = this.findTurretNodes(modelRoot);
+
         const unit: Unit = {
             id: nextId++,
             team,
@@ -199,6 +221,11 @@ export class UnitManager {
             selected: false,
             hovered: false,
             name,
+            turretYaw: 0,
+            turretPitch: 0,
+            fireCooldown: 0,
+            turretMesh: findResult.turretMesh,
+            barrelMesh: findResult.barrelMesh,
             luaScript: DEFAULT_SCRIPT,
             luaEnv: null,
             errorLog: [],
