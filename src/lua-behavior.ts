@@ -2,29 +2,38 @@ import { LuaFactory, LuaEngine } from "wasmoon";
 
 export const DEFAULT_SCRIPT = `\
 function tick(self, dt)
-  if self.target_x == nil then
+  -- Movement toward player-issued move command
+  if self.target_x ~= nil then
+    local dx = self.target_x - self.x
+    local dz = self.target_z - self.z
+    local dist = math.sqrt(dx * dx + dz * dz)
+    if dist >= 0.5 then
+      local desired_yaw = math.atan(dx, dz)
+      local angle_diff = desired_yaw - self.yaw
+      while angle_diff >  math.pi do angle_diff = angle_diff - 2 * math.pi end
+      while angle_diff < -math.pi do angle_diff = angle_diff + 2 * math.pi end
+      self.steer  = math.max(-1, math.min(1, angle_diff * 2))
+      self.thrust = math.max(0, math.cos(angle_diff))
+    else
+      self.thrust = 0
+      self.steer  = 0
+    end
+  else
     self.thrust = 0
-    self.steer = 0
-    return
+    self.steer  = 0
   end
 
-  local dx = self.target_x - self.x
-  local dz = self.target_z - self.z
-  local dist = math.sqrt(dx * dx + dz * dz)
-
-  if dist < 0.5 then
-    self.thrust = 0
-    self.steer = 0
-    return
+  -- Combat: aim turret at nearest enemy and fire when ready
+  if self.nearest_enemy_dist ~= nil and self.nearest_enemy_dist < 60 then
+    local dx = self.nearest_enemy_x - self.x
+    local dz = self.nearest_enemy_z - self.z
+    local world_bearing = math.atan(dx, dz)
+    self.turret_yaw   = world_bearing - self.yaw
+    self.turret_pitch = 0.3
+    if self.cooldown <= 0 then
+      self.fire = true
+    end
   end
-
-  local desired_yaw = math.atan(dx, dz)
-  local angle_diff = desired_yaw - self.yaw
-  while angle_diff >  math.pi do angle_diff = angle_diff - 2 * math.pi end
-  while angle_diff < -math.pi do angle_diff = angle_diff + 2 * math.pi end
-
-  self.steer  = math.max(-1, math.min(1, angle_diff * 2))
-  self.thrust = math.max(0, math.cos(angle_diff))
 end
 `;
 

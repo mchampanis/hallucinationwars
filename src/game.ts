@@ -5,6 +5,7 @@ import { UnitManager } from "./units";
 import { InputManager } from "./input";
 import { UIOverlay } from "./ui";
 import { LuaBehaviorEngine } from "./lua-behavior";
+import { ProjectileManager } from "./projectiles";
 
 export class Game {
     private renderer: THREE.WebGLRenderer;
@@ -13,6 +14,7 @@ export class Game {
     private cameraController: CameraController;
     private terrain: Terrain;
     private units: UnitManager;
+    private projectiles: ProjectileManager;
     private input: InputManager;
     private ui: UIOverlay;
     private clock: THREE.Timer;
@@ -47,6 +49,7 @@ export class Game {
         );
         this.luaBehavior = new LuaBehaviorEngine();
         this.units = new UnitManager(this.scene, this.terrain, this.luaBehavior);
+        this.projectiles = new ProjectileManager(this.scene);
         this.input = new InputManager(
             this.renderer.domElement,
             this.camera,
@@ -94,7 +97,8 @@ export class Game {
         const delta = this.clock.getDelta();
 
         this.cameraController.update(delta);
-        await this.units.update(delta);
+        await this.units.update(delta, this.projectiles);
+        this.projectiles.update(delta, this.terrain, this.units.getAllUnits());
         this.input.update();
         this.ui.update();
         this.renderer.render(this.scene, this.camera);
