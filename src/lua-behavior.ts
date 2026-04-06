@@ -1,4 +1,5 @@
 import { LuaFactory, LuaEngine } from "wasmoon";
+import { MAX_TURRET_PITCH } from "./projectiles";
 
 export const DEFAULT_SCRIPT = `\
 function tick(self, dt)
@@ -140,7 +141,7 @@ export class LuaBehaviorEngine {
         const steer = Math.max(-1, Math.min(1, (self.steer as number) ?? 0));
         const turretYaw = Math.max(-Math.PI, Math.min(Math.PI,
             typeof self.turret_yaw === "number" ? self.turret_yaw : sensors.turretYaw));
-        const turretPitch = Math.max(0, Math.min(0.6,
+        const turretPitch = Math.max(0, Math.min(MAX_TURRET_PITCH,
             typeof self.turret_pitch === "number" ? self.turret_pitch : sensors.turretPitch));
         const fire = self.fire === true;
         return { thrust, steer, turretYaw, turretPitch, fire };

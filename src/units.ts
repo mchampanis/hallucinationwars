@@ -348,10 +348,11 @@ export class UnitManager {
                 unit.fireCooldown = FIRE_COOLDOWN;
             }
 
-            // Cooldown tick
-            if (unit.fireCooldown > 0) {
-                unit.fireCooldown = Math.max(0, unit.fireCooldown - delta);
-            }
+        }
+
+        // Cooldown tick (always runs regardless of Lua state)
+        if (unit.fireCooldown > 0) {
+            unit.fireCooldown = Math.max(0, unit.fireCooldown - delta);
         }
 
         // Always snap to terrain height and conform rotation to slope
